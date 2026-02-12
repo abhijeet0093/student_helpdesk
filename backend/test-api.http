@@ -1,0 +1,282 @@
+### Health Check
+GET http://localhost:5001/api/health
+
+### Student Registration
+POST http://localhost:5001/api/auth/student/register
+Content-Type: application/json
+
+{
+  "rollNumber": "CS2024001",
+  "enrollmentNumber": "EN2024CS001",
+  "fullName": "Test Student",
+  "dateOfBirth": "2003-05-15",
+  "password": "Test@123"
+}
+
+### Student Login
+POST http://localhost:5001/api/auth/student/login
+Content-Type: application/json
+
+{
+  "rollNumber": "CS2024001",
+  "password": "Test@123"
+}
+
+### Admin Login
+POST http://localhost:5001/api/auth/admin/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+### Create Complaint (Student)
+POST http://localhost:5001/api/complaints
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "category": "Infrastructure",
+  "description": "The projector in Room 301 is not working properly. It keeps flickering and turning off."
+}
+
+### Get My Complaints (Student)
+GET http://localhost:5001/api/complaints/my
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+
+### Get All Complaints (Admin)
+GET http://localhost:5001/api/complaints
+Authorization: Bearer YOUR_ADMIN_TOKEN_HERE
+
+### Update Complaint Status (Admin)
+PATCH http://localhost:5001/api/complaints/CMP2024001
+Authorization: Bearer YOUR_ADMIN_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "status": "Resolved",
+  "adminRemark": "Projector has been repaired and tested. Working fine now."
+}
+
+
+### ========================================
+### STAFF AUTHENTICATION
+### ========================================
+
+### Staff Login
+POST http://localhost:3001/api/auth/staff/login
+Content-Type: application/json
+
+{
+  "email": "rajesh.staff@college.edu",
+  "password": "staff123"
+}
+
+### ========================================
+### ADMIN ROUTES
+### ========================================
+
+### Get All Complaints (Admin)
+GET http://localhost:3001/api/admin/complaints
+Authorization: Bearer YOUR_ADMIN_TOKEN_HERE
+
+### Get All Complaints with Filters (Admin)
+GET http://localhost:3001/api/admin/complaints?status=Pending&category=Infrastructure
+Authorization: Bearer YOUR_ADMIN_TOKEN_HERE
+
+### Get Single Complaint Details (Admin)
+GET http://localhost:3001/api/admin/complaints/CMP2024001
+Authorization: Bearer YOUR_ADMIN_TOKEN_HERE
+
+### Assign Complaint to Staff (Admin)
+POST http://localhost:3001/api/admin/complaints/CMP2024001/assign
+Authorization: Bearer YOUR_ADMIN_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "staffId": "STAFF_OBJECT_ID_HERE",
+  "note": "Please check and resolve this issue"
+}
+
+### ========================================
+### STAFF ROUTES
+### ========================================
+
+### Get Assigned Complaints (Staff)
+GET http://localhost:3001/api/staff/complaints
+Authorization: Bearer YOUR_STAFF_TOKEN_HERE
+
+### Get Assigned Complaints with Filter (Staff)
+GET http://localhost:3001/api/staff/complaints?status=In Progress
+Authorization: Bearer YOUR_STAFF_TOKEN_HERE
+
+### Get Single Complaint Details (Staff - Only Assigned)
+GET http://localhost:3001/api/staff/complaints/CMP2024001
+Authorization: Bearer YOUR_STAFF_TOKEN_HERE
+
+### Update Complaint Status (Staff - Only Assigned)
+PATCH http://localhost:3001/api/staff/complaints/CMP2024001/status
+Authorization: Bearer YOUR_STAFF_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "status": "Resolved",
+  "remark": "Issue has been fixed. Projector is working now."
+}
+
+
+### ========================================
+### AI STUDENT ASSISTANT
+### ========================================
+
+### Send Message to AI
+POST http://localhost:3001/api/ai/chat
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "message": "How can I prepare for my upcoming exams?"
+}
+
+### Send Another Message
+POST http://localhost:3001/api/ai/chat
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "message": "Can you explain the concept of algorithms in simple terms?"
+}
+
+### Get Chat History
+GET http://localhost:3001/api/ai/history
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+
+### Get Chat History with Limit
+GET http://localhost:3001/api/ai/history?limit=20
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+
+### Clear Chat History
+DELETE http://localhost:3001/api/ai/history
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+
+
+### ========================================
+### STUDENT DASHBOARD
+### ========================================
+
+### Get Dashboard Data
+GET http://localhost:3001/api/student/dashboard
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+
+### ========================================
+### STUDENT CORNER (POSTS)
+### ========================================
+
+### Create Post (Text Only)
+POST http://localhost:3001/api/posts
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "contentText": "Just finished studying Data Structures! The concept of Binary Search Trees is really interesting. Anyone wants to discuss?"
+}
+
+### Create Post (With Attachment - use multipart/form-data)
+# POST http://localhost:3001/api/posts
+# Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+# Content-Type: multipart/form-data
+# 
+# contentText: "Check out these notes on Algorithms"
+# attachment: <file>
+
+### Get Feed (All Posts)
+GET http://localhost:3001/api/posts
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+
+### Get Feed with Pagination
+GET http://localhost:3001/api/posts?page=1&limit=10
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+
+### Like Post
+POST http://localhost:3001/api/posts/POST_ID_HERE/like
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+
+### Unlike Post (same endpoint - toggle)
+POST http://localhost:3001/api/posts/POST_ID_HERE/like
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+
+### Add Comment
+POST http://localhost:3001/api/posts/POST_ID_HERE/comment
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "text": "Great post! I found this topic helpful too."
+}
+
+### Report Post
+POST http://localhost:3001/api/posts/POST_ID_HERE/report
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+
+### Delete Own Post
+DELETE http://localhost:3001/api/posts/POST_ID_HERE
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+
+
+### ========================================
+### UT RESULTS & PERFORMANCE ANALYSIS
+### ========================================
+
+### Enter Result (Teacher/Admin)
+POST http://localhost:3001/api/results
+Authorization: Bearer YOUR_ADMIN_OR_STAFF_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "rollNo": "CS2024001",
+  "subjectCode": "CS301",
+  "department": "Computer Science",
+  "year": 3,
+  "utType": "UT1",
+  "marksObtained": 42,
+  "maxMarks": 50
+}
+
+### Enter UT2 Result
+POST http://localhost:3001/api/results
+Authorization: Bearer YOUR_ADMIN_OR_STAFF_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "rollNo": "CS2024001",
+  "subjectCode": "CS301",
+  "department": "Computer Science",
+  "year": 3,
+  "utType": "UT2",
+  "marksObtained": 45,
+  "maxMarks": 50
+}
+
+### Update Existing Result
+POST http://localhost:3001/api/results
+Authorization: Bearer YOUR_ADMIN_OR_STAFF_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "rollNo": "CS2024001",
+  "subjectCode": "CS301",
+  "department": "Computer Science",
+  "year": 3,
+  "utType": "UT1",
+  "marksObtained": 45,
+  "maxMarks": 50
+}
+
+### Get My Results (Student)
+GET http://localhost:3001/api/results/my
+Authorization: Bearer YOUR_STUDENT_TOKEN_HERE
+
+### Get Student Results by Roll Number (Admin)
+GET http://localhost:3001/api/results/student/CS2024001
+Authorization: Bearer YOUR_ADMIN_TOKEN_HERE
