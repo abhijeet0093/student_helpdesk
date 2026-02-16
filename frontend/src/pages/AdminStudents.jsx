@@ -244,10 +244,21 @@ const AdminStudents = () => {
             <strong>Instructions:</strong>
             <ol style={{ marginTop: '8px', marginLeft: '20px' }}>
               <li>Download the Excel template</li>
-              <li>Fill in student details (rollNumber, enrollmentNumber, fullName are required)</li>
+              <li>Fill in student details:
+                <ul style={{ marginLeft: '20px', marginTop: '4px' }}>
+                  <li><strong>rollNumber</strong> - Student roll number (e.g., 101, 102)</li>
+                  <li><strong>enrollmentNumber</strong> - Enrollment number (Required)</li>
+                  <li><strong>fullName</strong> - Student full name (Required)</li>
+                  <li><strong>department</strong> - Department name (e.g., Computer Engineering)</li>
+                  <li><strong>year</strong> - Academic year (e.g., Second Year)</li>
+                </ul>
+              </li>
               <li>Upload the completed Excel file</li>
-              <li>Students will be created with default password: student123</li>
+              <li>Students will be created with default password: <strong>student123</strong></li>
             </ol>
+            <div style={{ marginTop: '8px', padding: '8px', background: '#fff3cd', borderRadius: '4px' }}>
+              <strong>Note:</strong> Column headers can have extra text like "(Required)" - the system will handle it automatically.
+            </div>
           </div>
         </section>
 

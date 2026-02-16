@@ -28,7 +28,7 @@ const seedStaff = async () => {
       {
         name: 'Priya Sharma',
         email: 'priya.staff@college.edu',
-        department: 'Mechanical Engineering',
+        department: 'Computer Science',
         password: 'staff123'
       }
     ];

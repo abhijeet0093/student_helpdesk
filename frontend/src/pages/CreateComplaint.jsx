@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
-import '../styles/CreateComplaint.css';
 
 const CreateComplaint = () => {
   const navigate = useNavigate();
@@ -104,13 +103,13 @@ const CreateComplaint = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-blue-50 py-8 px-4 animate-fade-in">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 py-8 px-4 animate-fade-in">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="mb-6">
           <button
             onClick={() => navigate('/dashboard')}
-            className="flex items-center text-primary-600 hover:text-primary-700 font-medium mb-4 transition-colors"
+            className="flex items-center text-indigo-600 hover:text-indigo-700 font-medium mb-4 transition-colors"
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -121,13 +120,25 @@ const CreateComplaint = () => {
           <p className="text-gray-600 mt-2">Fill in the details below to submit your complaint</p>
         </div>
 
+        {/* Info Box */}
+        <div className="bg-indigo-50 border-l-4 border-indigo-500 rounded-xl p-4 mb-6">
+          <div className="flex items-start">
+            <svg className="w-5 h-5 text-indigo-600 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <p className="text-sm text-indigo-700">
+              Your complaint will be reviewed by assigned staff members. You'll receive updates on the status of your complaint.
+            </p>
+          </div>
+        </div>
+
         {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 animate-slide-up">
+        <div className="bg-white rounded-2xl shadow-xl p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Title */}
             <div>
               <label htmlFor="title" className="block text-sm font-semibold text-gray-700 mb-2">
-                Title <span className="text-red-500">*</span>
+                Complaint Title <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -136,7 +147,7 @@ const CreateComplaint = () => {
                 value={formData.title}
                 onChange={handleChange}
                 placeholder="Brief title for your complaint"
-                className="input-field"
+                className="w-full rounded-xl border-2 border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                 required
               />
             </div>
@@ -153,7 +164,7 @@ const CreateComplaint = () => {
                   name="category"
                   value={formData.category}
                   onChange={handleChange}
-                  className="input-field"
+                  className="w-full rounded-xl border-2 border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                   required
                 >
                   <option value="">Select a category</option>
@@ -173,7 +184,7 @@ const CreateComplaint = () => {
                   name="priority"
                   value={formData.priority}
                   onChange={handleChange}
-                  className="input-field"
+                  className="w-full rounded-xl border-2 border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent px-4 py-3 transition-all duration-200"
                   required
                 >
                   <option value="low">Low</option>
@@ -195,7 +206,7 @@ const CreateComplaint = () => {
                 onChange={handleChange}
                 placeholder="Describe your complaint in detail..."
                 rows="6"
-                className="input-field resize-none"
+                className="w-full rounded-xl border-2 border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent px-4 py-3 resize-none transition-all duration-200"
                 required
               />
             </div>
@@ -210,7 +221,7 @@ const CreateComplaint = () => {
                 id="image"
                 accept="image/*"
                 onChange={handleImageChange}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 transition-colors"
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-colors"
               />
               {image && (
                 <p className="mt-2 text-sm text-gray-600">Selected: {image.name}</p>
@@ -220,7 +231,7 @@ const CreateComplaint = () => {
 
             {/* Error Message */}
             {error && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg animate-slide-up">
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg animate-shake">
                 <div className="flex">
                   <div className="flex-shrink-0">
                     <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -255,14 +266,14 @@ const CreateComplaint = () => {
               <button
                 type="button"
                 onClick={() => navigate('/dashboard')}
-                className="flex-1 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors duration-200"
+                className="flex-1 px-6 py-3 border-2 border-gray-300 rounded-xl text-gray-700 font-medium hover:bg-gray-50 transition-all duration-200"
                 disabled={loading}
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="flex-1 btn-primary py-3 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] transition-transform duration-200"
+                className="flex-1 bg-gradient-to-r from-indigo-500 to-blue-600 text-white px-6 py-3 rounded-xl shadow-md hover:scale-105 hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 font-medium"
                 disabled={loading}
               >
                 {loading ? (

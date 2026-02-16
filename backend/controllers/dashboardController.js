@@ -21,17 +21,17 @@ const getDashboardData = async (req, res) => {
     }
 
     // Get complaint statistics
-    const totalComplaints = await Complaint.countDocuments({ studentId: studentId });
+    const totalComplaints = await Complaint.countDocuments({ student: studentId });
     
     const complaintsByStatus = {
-      pending: await Complaint.countDocuments({ studentId: studentId, status: 'Pending' }),
-      inProgress: await Complaint.countDocuments({ studentId: studentId, status: 'In Progress' }),
-      resolved: await Complaint.countDocuments({ studentId: studentId, status: 'Resolved' }),
-      rejected: await Complaint.countDocuments({ studentId: studentId, status: 'Rejected' })
+      pending: await Complaint.countDocuments({ student: studentId, status: 'Pending' }),
+      inProgress: await Complaint.countDocuments({ student: studentId, status: 'In Progress' }),
+      resolved: await Complaint.countDocuments({ student: studentId, status: 'Resolved' }),
+      rejected: await Complaint.countDocuments({ student: studentId, status: 'Rejected' })
     };
 
     // Get latest complaint
-    const latestComplaint = await Complaint.findOne({ studentId: studentId })
+    const latestComplaint = await Complaint.findOne({ student: studentId })
       .sort({ createdAt: -1 })
       .select('complaintId category status createdAt updatedAt')
       .limit(1);

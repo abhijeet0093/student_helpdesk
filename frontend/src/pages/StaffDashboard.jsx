@@ -1,17 +1,52 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Loader from '../components/Loader';
-import '../styles/Dashboard.css';
 
 const StaffDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
   
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [currentPage, setCurrentPage] = useState('dashboard');
+
+  const menuItems = [
+    { 
+      name: 'Dashboard', 
+      path: '/staff/dashboard', 
+      key: 'dashboard',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      )
+    },
+    { 
+      name: 'Assigned Complaints', 
+      path: '/staff/complaints', 
+      key: 'complaints',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      )
+    },
+    { 
+      name: 'UT Results', 
+      path: '/staff/results', 
+      key: 'results',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      )
+    },
+  ];
 
   useEffect(() => {
     fetchAssignedComplaints();
@@ -50,16 +85,24 @@ const StaffDashboard = () => {
   const stats = getStats();
 
   if (loading) {
-    return <Loader message="Loading dashboard..." />;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <Loader message="Loading dashboard..." />
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <div className="dashboard-container">
-        <div className="error-container">
-          <h2>Error Loading Dashboard</h2>
-          <p>{error}</p>
-          <button onClick={fetchAssignedComplaints} className="retry-btn">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Dashboard</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <button
+            onClick={fetchAssignedComplaints}
+            className="bg-gradient-to-r from-indigo-500 to-blue-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+          >
             Retry
           </button>
         </div>
@@ -68,94 +111,227 @@ const StaffDashboard = () => {
   }
 
   return (
-    <div className="dashboard-container">
-      <header className="dashboard-header">
-        <div className="header-content">
-          <div className="header-left">
-            <h1>Staff Dashboard</h1>
-            <p className="header-subtitle">Welcome, {user?.name || 'Staff'}</p>
-          </div>
-          <div className="header-right">
-            <button onClick={handleLogout} className="logout-btn">
-              Logout
-            </button>
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      {/* Sidebar */}
+      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-slate-900 text-white transition-all duration-300 flex flex-col shadow-2xl`}>
+        {/* Logo */}
+        <div className="p-6 border-b border-slate-700">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            {sidebarOpen && <span className="text-xl font-bold">Staff Panel</span>}
           </div>
         </div>
-      </header>
 
-      <main className="dashboard-main">
-        <section className="summary-section">
-          <h2 className="section-title">My Assigned Complaints</h2>
-          <div className="summary-grid">
-            <div className="summary-card" style={{ borderLeftColor: '#667eea' }}>
-              <div className="summary-card-content">
-                <div className="summary-card-header">
-                  <span className="summary-card-icon">📋</span>
-                  <h3 className="summary-card-title">Total Assigned</h3>
-                </div>
-                <p className="summary-card-value">{stats.total}</p>
+        {/* Menu Items */}
+        <nav className="flex-1 p-4 space-y-2">
+          {menuItems.map((item) => {
+            const isActive = currentPage === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={() => {
+                  setCurrentPage(item.key);
+                  navigate(item.path);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-lg border-l-4 border-indigo-400'
+                    : 'text-gray-300 hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                {item.icon}
+                {sidebarOpen && <span className="font-medium">{item.name}</span>}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Logout Button */}
+        <div className="p-4 border-t border-slate-700">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-300 hover:bg-red-900 hover:text-white transition-all duration-300"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            {sidebarOpen && <span className="font-medium">Logout</span>}
+          </button>
+        </div>
+
+        {/* Toggle Button */}
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="absolute -right-3 top-20 w-6 h-6 bg-slate-900 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-slate-800 transition-all duration-300"
+        >
+          <svg className={`w-4 h-4 transform transition-transform ${sidebarOpen ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Navbar */}
+        <header className="bg-white shadow-md p-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Staff Dashboard</h1>
+            <p className="text-sm text-gray-500">Welcome back, {user?.name || 'Staff'}</p>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            {/* Notification Bell */}
+            <button className="relative p-2 text-gray-600 hover:bg-gray-100 rounded-xl transition-all duration-300 hover:scale-110">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
+
+            {/* Profile */}
+            <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-xl">
+              <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold">
+                {user?.name?.charAt(0).toUpperCase() || 'S'}
               </div>
-            </div>
-
-            <div className="summary-card" style={{ borderLeftColor: '#ff9800' }}>
-              <div className="summary-card-content">
-                <div className="summary-card-header">
-                  <span className="summary-card-icon">⏳</span>
-                  <h3 className="summary-card-title">Pending</h3>
-                </div>
-                <p className="summary-card-value">{stats.pending}</p>
-              </div>
-            </div>
-
-            <div className="summary-card" style={{ borderLeftColor: '#2196f3' }}>
-              <div className="summary-card-content">
-                <div className="summary-card-header">
-                  <span className="summary-card-icon">🔄</span>
-                  <h3 className="summary-card-title">In Progress</h3>
-                </div>
-                <p className="summary-card-value">{stats.inProgress}</p>
-              </div>
-            </div>
-
-            <div className="summary-card" style={{ borderLeftColor: '#4caf50' }}>
-              <div className="summary-card-content">
-                <div className="summary-card-header">
-                  <span className="summary-card-icon">✅</span>
-                  <h3 className="summary-card-title">Resolved</h3>
-                </div>
-                <p className="summary-card-value">{stats.resolved}</p>
+              <div className="hidden md:block">
+                <p className="text-sm font-semibold text-gray-900">{user?.name || 'Staff'}</p>
+                <p className="text-xs text-gray-500">{user?.department || 'Staff Member'}</p>
               </div>
             </div>
           </div>
-        </section>
+        </header>
 
-        <section className="quick-actions-section">
-          <h2 className="section-title">Quick Actions</h2>
-          <div className="actions-grid">
-            <button 
-              className="action-btn action-btn-primary"
-              onClick={() => navigate('/staff/complaints')}
-            >
-              <span className="action-icon">📋</span>
-              <span>View All Complaints</span>
-            </button>
-            <button 
-              className="action-btn action-btn-secondary"
-              onClick={() => navigate('/staff/results')}
-            >
-              <span className="action-icon">📊</span>
-              <span>UT Results</span>
-            </button>
-            <button 
-              className="action-btn action-btn-secondary"
-              onClick={() => navigate('/staff/complaints?status=pending')}
-            >
-              <span className="action-icon">⏳</span>
-              <span>Pending Complaints</span>
-            </button>
+        {/* Dashboard Content */}
+        <main className="flex-1 overflow-y-auto p-6">
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {/* Total Assigned */}
+            <div className="bg-white rounded-2xl shadow-lg p-6 transform hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 border-l-4 border-indigo-500">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-gray-500 text-sm font-medium mb-1">Total Assigned</h3>
+              <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
+              <div className="mt-2 flex items-center text-xs text-indigo-600">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+                All complaints
+              </div>
+            </div>
+
+            {/* Pending */}
+            <div className="bg-white rounded-2xl shadow-lg p-6 transform hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 border-l-4 border-yellow-500">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-gray-500 text-sm font-medium mb-1">Pending</h3>
+              <p className="text-3xl font-bold text-yellow-600">{stats.pending}</p>
+              <div className="mt-2 flex items-center text-xs text-yellow-600">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Needs attention
+              </div>
+            </div>
+
+            {/* In Progress */}
+            <div className="bg-white rounded-2xl shadow-lg p-6 transform hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 border-l-4 border-blue-500">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-gray-500 text-sm font-medium mb-1">In Progress</h3>
+              <p className="text-3xl font-bold text-blue-600">{stats.inProgress}</p>
+              <div className="mt-2 flex items-center text-xs text-blue-600">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Being resolved
+              </div>
+            </div>
+
+            {/* Resolved */}
+            <div className="bg-white rounded-2xl shadow-lg p-6 transform hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 border-l-4 border-green-500">
+              <div className="flex items-center justify-between mb-4">
+                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+              <h3 className="text-gray-500 text-sm font-medium mb-1">Resolved</h3>
+              <p className="text-3xl font-bold text-green-600">{stats.resolved}</p>
+              <div className="mt-2 flex items-center text-xs text-green-600">
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Completed
+              </div>
+            </div>
           </div>
-        </section>
-      </main>
+
+          {/* Quick Actions */}
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Quick Actions</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <button
+                onClick={() => {
+                  setCurrentPage('complaints');
+                  navigate('/staff/complaints');
+                }}
+                className="bg-gradient-to-r from-indigo-500 to-blue-600 text-white p-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                View All Complaints
+              </button>
+
+              <button
+                onClick={() => {
+                  setCurrentPage('results');
+                  navigate('/staff/results');
+                }}
+                className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                UT Results
+              </button>
+
+              <button
+                onClick={() => {
+                  setCurrentPage('complaints');
+                  navigate('/staff/complaints?status=pending');
+                }}
+                className="bg-gradient-to-r from-orange-500 to-red-600 text-white p-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center justify-center gap-3"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Pending Complaints
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 };

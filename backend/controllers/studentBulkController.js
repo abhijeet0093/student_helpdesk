@@ -53,6 +53,21 @@ const bulkUploadStudents = async (req, res) => {
       total: data.length
     };
 
+    // Helper function to find column value with flexible matching
+    const getColumnValue = (row, possibleNames) => {
+      for (const name of possibleNames) {
+        // Try exact match
+        if (row[name]) return row[name];
+        // Try case-insensitive match
+        const key = Object.keys(row).find(k => k.toLowerCase() === name.toLowerCase());
+        if (key && row[key]) return row[key];
+        // Try partial match (for headers like "enrollmentNumber (Required)")
+        const partialKey = Object.keys(row).find(k => k.toLowerCase().includes(name.toLowerCase()));
+        if (partialKey && row[partialKey]) return row[partialKey];
+      }
+      return null;
+    };
+
     // Process each row
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
@@ -60,12 +75,21 @@ const bulkUploadStudents = async (req, res) => {
       try {
         console.log(`\nProcessing row ${i + 2}:`, row);
         
+        // Extract values with flexible column matching
+        const rollNumber = getColumnValue(row, ['rollNumber', 'rollnumber', 'roll_number', 'Roll Number']);
+        const enrollmentNumber = getColumnValue(row, ['enrollmentNumber', 'enrollmentnumber', 'enrollment_number', 'Enrollment Number']);
+        const fullName = getColumnValue(row, ['fullName', 'fullname', 'full_name', 'Full Name', 'name', 'Name']);
+        const department = getColumnValue(row, ['department', 'Department', 'dept']);
+        const year = getColumnValue(row, ['year', 'Year']);
+        const semester = getColumnValue(row, ['semester', 'Semester', 'sem']);
+        const password = getColumnValue(row, ['password', 'Password']);
+        
         // Validate required fields
-        if (!row.rollNumber || !row.fullName || !row.enrollmentNumber) {
+        if (!rollNumber || !fullName || !enrollmentNumber) {
           const missing = [];
-          if (!row.rollNumber) missing.push('rollNumber');
-          if (!row.fullName) missing.push('fullName');
-          if (!row.enrollmentNumber) missing.push('enrollmentNumber');
+          if (!rollNumber) missing.push('rollNumber');
+          if (!fullName) missing.push('fullName');
+          if (!enrollmentNumber) missing.push('enrollmentNumber');
           
           console.error(`Row ${i + 2} missing fields:`, missing);
           results.failed.push({
@@ -76,34 +100,71 @@ const bulkUploadStudents = async (req, res) => {
           continue;
         }
 
-        // Extract department from roll number
-        const rollNo = row.rollNumber.toString().trim().toUpperCase();
-        const departmentCode = rollNo.replace(/[0-9]/g, '');
+        // Extract department from roll number or use provided department
+        const rollNo = rollNumber.toString().trim().toUpperCase();
         
-        const departmentMap = {
-          'CS': 'Computer Science',
-          'IT': 'Information Technology',
-          'ENTC': 'Electronics & Telecommunication',
-          'MECH': 'Mechanical Engineering',
-          'CIVIL': 'Civil Engineering',
-          'ME': 'Mechanical Engineering',
-          'CE': 'Civil Engineering'
-        };
+        let finalDepartment = 'General';
         
-        const department = departmentMap[departmentCode] || 'General';
-        console.log(`Department extracted: ${departmentCode} -> ${department}`);
+        // If department provided in Excel, use it
+        if (department) {
+          const deptStr = department.toString().trim();
+          // Handle full department names
+          if (deptStr.toLowerCase().includes('computer')) {
+            finalDepartment = 'Computer';
+          } else if (deptStr.toLowerCase().includes('information')) {
+            finalDepartment = 'IT';
+          } else if (deptStr.toLowerCase().includes('electronics') || deptStr.toLowerCase().includes('telecommunication')) {
+            finalDepartment = 'ENTC';
+          } else if (deptStr.toLowerCase().includes('mechanical')) {
+            finalDepartment = 'Mechanical';
+          } else if (deptStr.toLowerCase().includes('civil')) {
+            finalDepartment = 'Civil';
+          } else {
+            finalDepartment = deptStr;
+          }
+        } else {
+          // Extract from roll number
+          const departmentCode = rollNo.replace(/[0-9]/g, '');
+          const departmentMap = {
+            'CS': 'Computer',
+            'IT': 'IT',
+            'ENTC': 'ENTC',
+            'MECH': 'Mechanical',
+            'CIVIL': 'Civil',
+            'ME': 'Mechanical',
+            'CE': 'Civil'
+          };
+          finalDepartment = departmentMap[departmentCode] || 'General';
+        }
+        
+        console.log(`Department: ${finalDepartment}`);
+
+        // Determine semester from year if provided
+        let finalSemester = 1;
+        if (semester) {
+          finalSemester = parseInt(semester);
+        } else if (year) {
+          const yearStr = year.toString().toLowerCase();
+          if (yearStr.includes('first') || yearStr.includes('1')) {
+            finalSemester = 1;
+          } else if (yearStr.includes('second') || yearStr.includes('2')) {
+            finalSemester = 3;
+          } else if (yearStr.includes('third') || yearStr.includes('3')) {
+            finalSemester = 5;
+          }
+        }
 
         // Generate default password (will be hashed by Student model pre-save hook)
-        const defaultPassword = row.password || 'student123';
+        const defaultPassword = password || 'student123';
 
         // Generate email
-        const email = row.email || `${rollNo.toLowerCase()}@student.college.edu`;
+        const email = `${rollNo.toLowerCase()}@student.college.edu`;
 
         // Check if student already exists
         const existingStudent = await Student.findOne({ 
           $or: [
             { rollNumber: rollNo },
-            { enrollmentNumber: row.enrollmentNumber.toString().trim().toUpperCase() }
+            { enrollmentNumber: enrollmentNumber.toString().trim().toUpperCase() }
           ]
         });
 
@@ -120,12 +181,12 @@ const bulkUploadStudents = async (req, res) => {
         // Create student (password will be auto-hashed by pre-save hook)
         const studentData = {
           rollNumber: rollNo,
-          enrollmentNumber: row.enrollmentNumber.toString().trim().toUpperCase(),
-          fullName: row.fullName.trim(),
+          enrollmentNumber: enrollmentNumber.toString().trim().toUpperCase(),
+          fullName: fullName.trim(),
           email: email.toLowerCase(),
           password: defaultPassword, // Will be hashed by pre-save hook
-          department: department,
-          semester: parseInt(row.semester) || 1
+          department: finalDepartment,
+          semester: finalSemester
         };
 
         console.log('Creating student with data:', studentData);
@@ -183,28 +244,28 @@ const bulkUploadStudents = async (req, res) => {
  */
 const downloadTemplate = async (req, res) => {
   try {
-    // Create sample data with only required fields
+    // Create sample data matching common Excel formats
     const sampleData = [
       {
-        rollNumber: 'CS2025001',
-        enrollmentNumber: 'EN2025CS001',
-        fullName: 'John Doe',
-        semester: 1,
-        password: 'student123'
+        'rollNumber': '101',
+        'enrollmentNumber (Required)': 'ENR2024001',
+        'fullName (Required)': 'Aarav Patil',
+        'department': 'Computer Engineering',
+        'year': 'Second Year'
       },
       {
-        rollNumber: 'IT2025002',
-        enrollmentNumber: 'EN2025IT002',
-        fullName: 'Jane Smith',
-        semester: 1,
-        password: 'student123'
+        'rollNumber': '102',
+        'enrollmentNumber (Required)': 'ENR2024002',
+        'fullName (Required)': 'Sneha Kulkarni',
+        'department': 'Computer Engineering',
+        'year': 'Second Year'
       },
       {
-        rollNumber: 'ME2025003',
-        enrollmentNumber: 'EN2025ME003',
-        fullName: 'Mike Johnson',
-        semester: 1,
-        password: 'student123'
+        'rollNumber': '103',
+        'enrollmentNumber (Required)': 'ENR2024003',
+        'fullName (Required)': 'Rohit Sharma',
+        'department': 'Computer Engineering',
+        'year': 'Second Year'
       }
     ];
 
@@ -215,10 +276,10 @@ const downloadTemplate = async (req, res) => {
     // Set column widths
     ws['!cols'] = [
       { wch: 15 }, // rollNumber
-      { wch: 20 }, // enrollmentNumber
-      { wch: 25 }, // fullName
-      { wch: 10 }, // semester
-      { wch: 15 }  // password
+      { wch: 25 }, // enrollmentNumber (Required)
+      { wch: 25 }, // fullName (Required)
+      { wch: 25 }, // department
+      { wch: 15 }  // year
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, 'Students');

@@ -5,6 +5,9 @@ async function createComplaint(req, res) {
   try {
     const { title, description, category, priority } = req.body;
     
+    console.log('=== CREATE COMPLAINT DEBUG ===');
+    console.log('Request body:', { title, description, category, priority });
+    
     // Validation
     if (!title || !description || !category) {
       return res.status(400).json({
@@ -14,9 +17,14 @@ async function createComplaint(req, res) {
     }
     
     // Get user ID from JWT middleware
+    console.log('req.user:', req.user);
+    console.log('req.userId:', req.userId);
+    
     const studentId = req.user?.userId || req.userId;
+    console.log('Extracted studentId:', studentId);
     
     if (!studentId) {
+      console.error('❌ No studentId found!');
       return res.status(401).json({
         success: false,
         message: 'Authentication required'
@@ -28,11 +36,14 @@ async function createComplaint(req, res) {
     const student = await Student.findById(studentId);
     
     if (!student) {
+      console.error('❌ Student not found with ID:', studentId);
       return res.status(404).json({
         success: false,
         message: 'Student not found'
       });
     }
+    
+    console.log('✅ Student found:', student.fullName, student.rollNumber);
     
     // Create complaint data
     const complaintData = {
@@ -47,6 +58,8 @@ async function createComplaint(req, res) {
       status: 'Pending'
     };
     
+    console.log('Complaint data to save:', complaintData);
+    
     // Handle image if uploaded
     if (req.file) {
       complaintData.image = `/uploads/complaints/${req.file.filename}`;
@@ -55,6 +68,8 @@ async function createComplaint(req, res) {
     
     // Create complaint
     const complaint = await Complaint.create(complaintData);
+    console.log('✅ Complaint created with _id:', complaint._id);
+    console.log('   student field:', complaint.student);
     
     // Populate student details
     await complaint.populate('student', 'fullName rollNumber email');
@@ -76,12 +91,39 @@ async function createComplaint(req, res) {
 // Get Student's Own Complaints
 async function getMyComplaints(req, res) {
   try {
+    // Debug logging
+    console.log('=== GET MY COMPLAINTS DEBUG ===');
+    console.log('req.user:', req.user);
+    console.log('req.userId:', req.userId);
+    console.log('req.role:', req.role);
+    
     const studentId = req.user?.userId || req.userId;
+    console.log('Extracted studentId:', studentId);
+    
+    if (!studentId) {
+      console.error('❌ No studentId found!');
+      return res.status(401).json({
+        success: false,
+        message: 'Student ID not found in request'
+      });
+    }
+    
+    console.log('Querying complaints with filter:', { student: studentId });
     
     const complaints = await Complaint.find({ student: studentId })
       .populate('student', 'fullName rollNumber')
       .populate('assignedTo', 'name email')
       .sort({ createdAt: -1 });
+    
+    console.log(`Found ${complaints.length} complaints`);
+    if (complaints.length > 0) {
+      console.log('First complaint:', {
+        id: complaints[0]._id,
+        title: complaints[0].title,
+        student: complaints[0].student,
+        status: complaints[0].status
+      });
+    }
     
     res.json({
       success: true,
@@ -214,7 +256,7 @@ async function updateComplaintStatus(req, res) {
 // Assign Complaint to Staff (Admin)
 async function assignComplaint(req, res) {
   try {
-    const { staffId } = req.body;
+    const { staffId, assignToModel } = req.body;
     
     if (!staffId) {
       return res.status(400).json({
@@ -232,7 +274,23 @@ async function assignComplaint(req, res) {
       });
     }
     
+    // Determine the model type (Staff or Admin)
+    const modelType = assignToModel || 'Staff';
+    
+    // Verify the staff/admin exists
+    const Model = require(`../models/${modelType}`);
+    const assignee = await Model.findById(staffId);
+    
+    if (!assignee) {
+      return res.status(404).json({
+        success: false,
+        message: `${modelType} not found`
+      });
+    }
+    
     complaint.assignedTo = staffId;
+    complaint.assignedToModel = modelType;
+    complaint.assignedToName = assignee.name || assignee.fullName;
     complaint.status = 'In Progress';
     await complaint.save();
     

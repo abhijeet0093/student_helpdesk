@@ -58,7 +58,7 @@ const complaintSchema = new mongoose.Schema({
   assignedToModel: {
     type: String,
     enum: ['Staff', 'Admin'],
-    default: null
+    required: false
   },
   assignedToName: {
     type: String,

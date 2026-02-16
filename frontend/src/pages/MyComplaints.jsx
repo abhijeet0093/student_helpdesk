@@ -13,17 +13,37 @@ const MyComplaints = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
+  const [refreshMessage, setRefreshMessage] = useState('');
+  const [lastUpdated, setLastUpdated] = useState(null);
 
   useEffect(() => {
     fetchComplaints();
+    
+    // Auto-refresh when page comes into focus
+    const handleFocus = () => {
+      fetchComplaints(true);
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
-  const fetchComplaints = async () => {
+  const fetchComplaints = async (isRefresh = false) => {
     try {
       setLoading(true);
       setError('');
-      const response = await api.get('/complaints');
+      setRefreshMessage('');
+      const response = await api.get('/complaints/my');
       setComplaints(response.data.data || []);
+      setLastUpdated(new Date());
+      
+      if (isRefresh) {
+        setRefreshMessage('Complaints updated successfully!');
+        setTimeout(() => setRefreshMessage(''), 3000);
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load complaints');
       console.error('Fetch complaints error:', err);
@@ -80,19 +100,36 @@ const MyComplaints = () => {
             </button>
             <h1 className="text-3xl font-bold text-gray-900">My Complaints</h1>
           </div>
-          <button
-            onClick={() => navigate('/complaints/new')}
-            className="btn-primary flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Raise New Complaint
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => fetchComplaints(true)}
+              disabled={loading}
+              className="px-4 py-2 bg-white border-2 border-primary-600 text-primary-600 rounded-xl font-medium hover:bg-primary-50 transition-all duration-300 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg 
+                className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+            <button
+              onClick={() => navigate('/complaints/new')}
+              className="btn-primary flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Raise New Complaint
+            </button>
+          </div>
         </div>
 
         {/* Filter Tabs */}
-        <div className="bg-white rounded-xl shadow-md p-2 mb-6 flex gap-2 overflow-x-auto">
+        <div className="bg-white rounded-xl shadow-md p-2 mb-4 flex gap-2 overflow-x-auto">
           <button
             className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 whitespace-nowrap ${
               filter === 'all'
@@ -134,6 +171,36 @@ const MyComplaints = () => {
             Resolved ({complaints.filter(c => c.status === 'Resolved').length})
           </button>
         </div>
+
+        {/* Last Updated Info */}
+        {lastUpdated && (
+          <div className="text-sm text-gray-500 mb-6 flex items-center gap-2">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Last updated: {lastUpdated.toLocaleTimeString('en-IN', { 
+              hour: '2-digit', 
+              minute: '2-digit',
+              second: '2-digit'
+            })}
+          </div>
+        )}
+
+        {/* Success Message */}
+        {refreshMessage && (
+          <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg mb-6 animate-fade-in">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-green-700 font-medium">{refreshMessage}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (
