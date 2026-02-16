@@ -21,20 +21,35 @@ const { generateToken } = require('../utils/jwt');
 // ============================================================================
 async function registerStudent(req, res) {
   try {
-    // BUG FIX: Frontend sends rollNumber, enrollmentNumber, fullName, dateOfBirth, password
-    // Backend schema requires: rollNumber, enrollmentNumber, fullName, email, department, semester, password
-    const { rollNumber, enrollmentNumber, fullName, dateOfBirth, password } = req.body;
+    console.log('=== STUDENT REGISTRATION DEBUG ===');
+    console.log('Request Body:', req.body);
     
-    // Validate required fields that frontend actually sends
-    if (!rollNumber || !enrollmentNumber || !fullName || !password) {
+    // Frontend sends: rollNumber, enrollmentNumber, fullName, semester, password
+    // Backend schema requires: rollNumber, enrollmentNumber, fullName, email, department, semester, password
+    const { rollNumber, enrollmentNumber, fullName, semester, password } = req.body;
+    
+    // Validate required fields
+    if (!rollNumber || !enrollmentNumber || !fullName || !semester || !password) {
+      console.error('Missing required fields');
       return res.status(400).json({
         success: false,
         message: 'All fields are required'
       });
     }
     
+    // Validate semester range
+    const semesterNum = parseInt(semester);
+    if (isNaN(semesterNum) || semesterNum < 1 || semesterNum > 8) {
+      console.error('Invalid semester:', semester);
+      return res.status(400).json({
+        success: false,
+        message: 'Semester must be between 1 and 8'
+      });
+    }
+    
     // Validate password length (must match schema minlength: 8)
     if (password.length < 8) {
+      console.error('Password too short:', password.length);
       return res.status(400).json({
         success: false,
         message: 'Password must be at least 8 characters long'
@@ -42,6 +57,7 @@ async function registerStudent(req, res) {
     }
     
     // Check if student already exists by rollNumber or enrollmentNumber
+    console.log('Checking for existing student...');
     const existingStudent = await Student.findOne({
       $or: [
         { rollNumber: rollNumber.toUpperCase() },
@@ -50,13 +66,16 @@ async function registerStudent(req, res) {
     });
     
     if (existingStudent) {
+      console.error('Student already exists:', existingStudent.rollNumber);
       return res.status(400).json({
         success: false,
         message: 'Student already exists with this roll number or enrollment number'
       });
     }
     
-    // Generate email from rollNumber (temporary fix to satisfy schema)
+    console.log('No existing student found, proceeding with registration...');
+    
+    // Generate email from rollNumber
     const generatedEmail = `${rollNumber.toLowerCase()}@student.college.edu`;
     
     // Extract department from rollNumber (e.g., CS2024001 -> CS)
@@ -66,29 +85,44 @@ async function registerStudent(req, res) {
       'IT': 'Information Technology',
       'ENTC': 'Electronics & Telecommunication',
       'MECH': 'Mechanical Engineering',
-      'CIVIL': 'Civil Engineering'
+      'CIVIL': 'Civil Engineering',
+      'ME': 'Mechanical Engineering',
+      'CE': 'Civil Engineering'
     };
     const department = departmentMap[departmentCode] || 'General';
     
-    // Default semester to 1 for new registrations
-    const semester = 1;
+    console.log('Department extracted:', departmentCode, '->', department);
+    console.log('Semester:', semesterNum);
     
     // Create new student (password will be hashed by pre-save hook)
+    console.log('Creating student with data:', {
+      rollNumber: rollNumber.toUpperCase(),
+      enrollmentNumber: enrollmentNumber.toUpperCase(),
+      fullName,
+      email: generatedEmail,
+      department,
+      semester: semesterNum
+    });
+    
     const student = await Student.create({
       rollNumber: rollNumber.toUpperCase(),
       enrollmentNumber: enrollmentNumber.toUpperCase(),
       fullName,
       email: generatedEmail,
       department,
-      semester,
+      semester: semesterNum,
       password
     });
+    
+    console.log('Student created successfully:', student._id);
     
     // Generate JWT token
     const token = generateToken({
       userId: student._id,
       role: 'student'
     });
+    
+    console.log('Token generated, sending response...');
     
     // Return success response
     res.status(201).json({
@@ -107,10 +141,46 @@ async function registerStudent(req, res) {
     });
     
   } catch (error) {
-    console.error('Student registration error:', error);
+    console.error('=== STUDENT REGISTRATION ERROR ===');
+    console.error('Error:', error);
+    console.error('Error Message:', error.message);
+    console.error('Error Stack:', error.stack);
+    
+    // Handle duplicate key error
+    if (error.code === 11000) {
+      console.error('Duplicate key error details:', error.keyPattern, error.keyValue);
+      
+      // Get the field that caused the duplicate
+      const field = Object.keys(error.keyPattern)[0];
+      
+      // Provide user-friendly messages for each field
+      const fieldMessages = {
+        'rollNumber': 'This roll number is already registered',
+        'enrollmentNumber': 'This enrollment number is already registered',
+        'email': 'This email is already registered',
+        'studentMasterId': 'Registration ID conflict. Please try again or contact support.'
+      };
+      
+      const message = fieldMessages[field] || `A student with this ${field} already exists`;
+      
+      return res.status(400).json({
+        success: false,
+        message: message
+      });
+    }
+    
+    // Handle validation errors
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: messages.join(', ')
+      });
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Registration failed. Please try again.'
+      message: error.message || 'Registration failed. Please try again.'
     });
   }
 }

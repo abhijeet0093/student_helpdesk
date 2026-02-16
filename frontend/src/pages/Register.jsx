@@ -9,7 +9,7 @@ const Register = () => {
     rollNumber: '',
     enrollmentNumber: '',
     fullName: '',
-    dateOfBirth: '',
+    semester: '1',
     password: '',
     confirmPassword: '',
   });
@@ -35,8 +35,8 @@ const Register = () => {
     }
 
     // Validate password strength
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters long');
       return;
     }
 
@@ -103,15 +103,23 @@ const Register = () => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="dateOfBirth">Date of Birth *</label>
-            <input
-              type="date"
-              id="dateOfBirth"
-              name="dateOfBirth"
-              value={formData.dateOfBirth}
+            <label htmlFor="semester">Semester *</label>
+            <select
+              id="semester"
+              name="semester"
+              value={formData.semester}
               onChange={handleChange}
               required
-            />
+            >
+              <option value="1">Semester 1</option>
+              <option value="2">Semester 2</option>
+              <option value="3">Semester 3</option>
+              <option value="4">Semester 4</option>
+              <option value="5">Semester 5</option>
+              <option value="6">Semester 6</option>
+              <option value="7">Semester 7</option>
+              <option value="8">Semester 8</option>
+            </select>
           </div>
 
           <div className="form-group">
@@ -122,7 +130,7 @@ const Register = () => {
               name="password"
               value={formData.password}
               onChange={handleChange}
-              placeholder="At least 6 characters"
+              placeholder="At least 8 characters"
               required
             />
           </div>

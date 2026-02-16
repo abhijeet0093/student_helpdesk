@@ -2,6 +2,7 @@ const UTResult = require('../models/UTResult');
 const Subject = require('../models/Subject');
 const Student = require('../models/Student');
 const { analyzePerformance, generateSummary } = require('../utils/performanceAnalyzer');
+const { isValidSubjectForSemester, getSubjectsForSemester } = require('../utils/subjectsConfig');
 
 /**
  * ENTER/UPDATE RESULT (Staff Only)
@@ -94,6 +95,25 @@ const enterResult = async (req, res) => {
       });
     }
 
+    // Validate subject belongs to the specified year and semester
+    console.log('Validating subject for Year:', year, 'Semester:', semester);
+    const subjectCodeUpper = subjectCode.toString().trim().toUpperCase();
+    
+    if (!isValidSubjectForSemester(subjectCodeUpper, year, semester)) {
+      console.error('Invalid subject for semester:', subjectCodeUpper, 'Year:', year, 'Semester:', semester);
+      
+      // Get valid subjects for this semester
+      const validSubjects = getSubjectsForSemester(year, semester);
+      const validSubjectNames = validSubjects.map(s => s.name).join(', ');
+      
+      return res.status(400).json({
+        success: false,
+        message: `Subject "${subjectName}" (${subjectCodeUpper}) is not valid for Year ${year}, Semester ${semester}. Valid subjects: ${validSubjectNames}`
+      });
+    }
+    
+    console.log('Subject validation passed:', subjectCodeUpper);
+
     // Find student by roll number (trim and uppercase)
     const rollNoUpper = rollNo.toString().trim().toUpperCase();
     console.log('Looking for student with roll number:', rollNoUpper);
@@ -119,8 +139,7 @@ const enterResult = async (req, res) => {
 
     console.log('Student found:', student.rollNumber, '-', student.fullName, '-', student.department);
 
-    // Find or create subject
-    const subjectCodeUpper = subjectCode.toString().trim().toUpperCase();
+    // Find or create subject (subject code already validated above)
     console.log('Looking for subject:', subjectCodeUpper);
     
     let subject = await Subject.findOne({ subjectCode: subjectCodeUpper });
@@ -560,11 +579,45 @@ const releaseResults = async (req, res) => {
   }
 };
 
+/**
+ * GET SUBJECTS FOR SEMESTER
+ * GET /api/results/subjects/:year/:semester
+ */
+const getSubjectsForSemesterAPI = async (req, res) => {
+  try {
+    const { year, semester } = req.params;
+
+    console.log('Getting subjects for Year:', year, 'Semester:', semester);
+
+    const subjects = getSubjectsForSemester(year, semester);
+
+    if (subjects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: `No subjects found for Year ${year}, Semester ${semester}`
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: subjects
+    });
+
+  } catch (error) {
+    console.error('Get subjects error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch subjects'
+    });
+  }
+};
+
 module.exports = {
   enterResult,
   getMyResults,
   getStudentResults,
   getStaffResults,
   getAdminResults,
-  releaseResults
+  releaseResults,
+  getSubjectsForSemesterAPI
 };

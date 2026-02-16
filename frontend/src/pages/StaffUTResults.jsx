@@ -11,6 +11,7 @@ const StaffUTResults = () => {
   
   const [results, setResults] = useState([]);
   const [subjects, setSubjects] = useState([]);
+  const [availableSubjects, setAvailableSubjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState({ semester: '', department: '', utType: '' });
@@ -25,22 +26,36 @@ const StaffUTResults = () => {
     semester: '3',
     utType: 'UT1',
     marksObtained: '',
-    maxMarks: '25'
+    maxMarks: '30'
   });
 
   useEffect(() => {
     fetchResults();
-    fetchSubjects();
+    // Fetch subjects for initial year and semester
+    fetchSubjectsForSemester(formData.year, formData.semester);
   }, []);
 
-  const fetchSubjects = async () => {
+  // Fetch subjects when year or semester changes
+  useEffect(() => {
+    if (formData.year && formData.semester) {
+      fetchSubjectsForSemester(formData.year, formData.semester);
+    }
+  }, [formData.year, formData.semester]);
+
+  const fetchSubjectsForSemester = async (year, semester) => {
     try {
-      const response = await api.get('/results/subjects');
+      console.log('Fetching subjects for Year:', year, 'Semester:', semester);
+      const response = await api.get(`/results/subjects/${year}/${semester}`);
       if (response.data.success) {
-        setSubjects(response.data.data);
+        setAvailableSubjects(response.data.data);
+        console.log('Subjects loaded:', response.data.data);
       }
     } catch (err) {
       console.error('Fetch subjects error:', err);
+      setAvailableSubjects([]);
+      if (err.response?.status === 404) {
+        alert(`No subjects found for Year ${year}, Semester ${semester}`);
+      }
     }
   };
 
@@ -95,6 +110,7 @@ const StaffUTResults = () => {
       setFormData({
         ...formData,
         rollNo: '',
+        subjectCode: '',
         subjectName: '',
         marksObtained: ''
       });
@@ -108,9 +124,24 @@ const StaffUTResults = () => {
   };
 
   const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    
+    // If subject is selected from dropdown, auto-fill subject code and name
+    if (name === 'subjectCode') {
+      const selectedSubject = availableSubjects.find(s => s.code === value);
+      if (selectedSubject) {
+        setFormData({
+          ...formData,
+          subjectCode: selectedSubject.code,
+          subjectName: selectedSubject.name
+        });
+        return;
+      }
+    }
+    
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [name]: value
     });
   };
 
@@ -153,55 +184,6 @@ const StaffUTResults = () => {
 
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
-                  Subject Code *
-                </label>
-                <input
-                  type="text"
-                  name="subjectCode"
-                  value={formData.subjectCode}
-                  onChange={handleInputChange}
-                  placeholder="CS301"
-                  required
-                  style={{ width: '100%', padding: '10px', border: '2px solid #e0e0e0', borderRadius: '8px', fontSize: '14px' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
-                  Subject Name *
-                </label>
-                <input
-                  type="text"
-                  name="subjectName"
-                  value={formData.subjectName}
-                  onChange={handleInputChange}
-                  placeholder="Data Structures"
-                  required
-                  style={{ width: '100%', padding: '10px', border: '2px solid #e0e0e0', borderRadius: '8px', fontSize: '14px' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
-                  Department *
-                </label>
-                <select
-                  name="department"
-                  value={formData.department}
-                  onChange={handleInputChange}
-                  required
-                  style={{ width: '100%', padding: '10px', border: '2px solid #e0e0e0', borderRadius: '8px', fontSize: '14px' }}
-                >
-                  <option value="Computer">Computer</option>
-                  <option value="IT">IT</option>
-                  <option value="ENTC">ENTC</option>
-                  <option value="Mechanical">Mechanical</option>
-                  <option value="Civil">Civil</option>
-                </select>
-              </div>
-
-              <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
                   Year *
                 </label>
                 <select
@@ -214,7 +196,6 @@ const StaffUTResults = () => {
                   <option value="1">First Year</option>
                   <option value="2">Second Year</option>
                   <option value="3">Third Year</option>
-                  <option value="4">Fourth Year</option>
                 </select>
               </div>
 
@@ -229,8 +210,28 @@ const StaffUTResults = () => {
                   required
                   style={{ width: '100%', padding: '10px', border: '2px solid #e0e0e0', borderRadius: '8px', fontSize: '14px' }}
                 >
-                  {[1,2,3,4,5,6,7,8].map(sem => (
+                  {[1,2,3,4,5,6].map(sem => (
                     <option key={sem} value={sem}>Semester {sem}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '600' }}>
+                  Subject *
+                </label>
+                <select
+                  name="subjectCode"
+                  value={formData.subjectCode}
+                  onChange={handleInputChange}
+                  required
+                  style={{ width: '100%', padding: '10px', border: '2px solid #e0e0e0', borderRadius: '8px', fontSize: '14px' }}
+                >
+                  <option value="">Select Subject</option>
+                  {availableSubjects.map(subject => (
+                    <option key={subject.code} value={subject.code}>
+                      {subject.code} - {subject.name}
+                    </option>
                   ))}
                 </select>
               </div>

@@ -6,7 +6,8 @@ const {
   getStudentResults,
   getStaffResults,
   getAdminResults,
-  releaseResults
+  releaseResults,
+  getSubjectsForSemesterAPI
 } = require('../controllers/resultController');
 const { authenticate, authorizeStudent, authorizeAdmin, authorizeStaff } = require('../middleware/authMiddleware');
 
@@ -37,5 +38,9 @@ router.put('/release', authenticate, authorizeAdmin, releaseResults);
 // Get student results by roll number (Admin only)
 // GET /api/results/student/:rollNo
 router.get('/student/:rollNo', authenticate, authorizeAdmin, getStudentResults);
+
+// Get subjects for semester (Staff/Admin)
+// GET /api/results/subjects/:year/:semester
+router.get('/subjects/:year/:semester', authenticate, getSubjectsForSemesterAPI);
 
 module.exports = router;

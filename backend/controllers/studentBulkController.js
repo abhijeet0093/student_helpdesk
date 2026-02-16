@@ -1,6 +1,5 @@
 const XLSX = require('xlsx');
 const Student = require('../models/Student');
-const bcrypt = require('bcryptjs');
 
 /**
  * BULK UPLOAD STUDENTS FROM EXCEL (Admin Only)
@@ -8,6 +7,9 @@ const bcrypt = require('bcryptjs');
  */
 const bulkUploadStudents = async (req, res) => {
   try {
+    console.log('=== BULK UPLOAD DEBUG ===');
+    console.log('File received:', req.file ? 'Yes' : 'No');
+    
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -15,18 +17,33 @@ const bulkUploadStudents = async (req, res) => {
       });
     }
 
+    console.log('File details:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    });
+
     // Read Excel file
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     
-    // Convert to JSON
-    const data = XLSX.utils.sheet_to_json(worksheet);
+    // Convert to JSON - read headers from first row
+    const data = XLSX.utils.sheet_to_json(worksheet, { 
+      raw: false, // Convert all values to strings
+      defval: '' // Default value for empty cells
+    });
+
+    console.log('Rows found in Excel:', data.length);
+    if (data.length > 0) {
+      console.log('First row sample:', data[0]);
+      console.log('Column headers:', Object.keys(data[0]));
+    }
 
     if (data.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Excel file is empty'
+        message: 'Excel file is empty or has no data rows'
       });
     }
 
@@ -41,29 +58,43 @@ const bulkUploadStudents = async (req, res) => {
       const row = data[i];
       
       try {
+        console.log(`\nProcessing row ${i + 2}:`, row);
+        
         // Validate required fields
         if (!row.rollNumber || !row.fullName || !row.enrollmentNumber) {
+          const missing = [];
+          if (!row.rollNumber) missing.push('rollNumber');
+          if (!row.fullName) missing.push('fullName');
+          if (!row.enrollmentNumber) missing.push('enrollmentNumber');
+          
+          console.error(`Row ${i + 2} missing fields:`, missing);
           results.failed.push({
-            row: i + 2, // Excel row number (1-indexed + header)
+            row: i + 2,
             data: row,
-            error: 'Missing required fields (rollNumber, fullName, enrollmentNumber)'
+            error: `Missing required fields: ${missing.join(', ')}`
           });
           continue;
         }
 
-        // Extract department from roll number (e.g., CS2021001 -> Computer)
-        const rollNo = row.rollNumber.toString().toUpperCase();
-        let department = 'General';
+        // Extract department from roll number
+        const rollNo = row.rollNumber.toString().trim().toUpperCase();
+        const departmentCode = rollNo.replace(/[0-9]/g, '');
         
-        if (rollNo.startsWith('CS')) department = 'Computer';
-        else if (rollNo.startsWith('IT')) department = 'IT';
-        else if (rollNo.startsWith('ENTC')) department = 'ENTC';
-        else if (rollNo.startsWith('MECH')) department = 'Mechanical';
-        else if (rollNo.startsWith('CIVIL')) department = 'Civil';
+        const departmentMap = {
+          'CS': 'Computer Science',
+          'IT': 'Information Technology',
+          'ENTC': 'Electronics & Telecommunication',
+          'MECH': 'Mechanical Engineering',
+          'CIVIL': 'Civil Engineering',
+          'ME': 'Mechanical Engineering',
+          'CE': 'Civil Engineering'
+        };
+        
+        const department = departmentMap[departmentCode] || 'General';
+        console.log(`Department extracted: ${departmentCode} -> ${department}`);
 
-        // Generate default password (can be roll number or custom)
+        // Generate default password (will be hashed by Student model pre-save hook)
         const defaultPassword = row.password || 'student123';
-        const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
         // Generate email
         const email = row.email || `${rollNo.toLowerCase()}@student.college.edu`;
@@ -72,44 +103,47 @@ const bulkUploadStudents = async (req, res) => {
         const existingStudent = await Student.findOne({ 
           $or: [
             { rollNumber: rollNo },
-            { enrollmentNumber: row.enrollmentNumber }
+            { enrollmentNumber: row.enrollmentNumber.toString().trim().toUpperCase() }
           ]
         });
 
         if (existingStudent) {
+          console.error(`Row ${i + 2}: Student already exists`);
           results.failed.push({
             row: i + 2,
             data: row,
-            error: 'Student already exists'
+            error: 'Student already exists with this roll number or enrollment number'
           });
           continue;
         }
 
-        // Create student
-        const student = await Student.create({
+        // Create student (password will be auto-hashed by pre-save hook)
+        const studentData = {
           rollNumber: rollNo,
-          enrollmentNumber: row.enrollmentNumber,
-          fullName: row.fullName,
-          email: email,
-          password: hashedPassword,
+          enrollmentNumber: row.enrollmentNumber.toString().trim().toUpperCase(),
+          fullName: row.fullName.trim(),
+          email: email.toLowerCase(),
+          password: defaultPassword, // Will be hashed by pre-save hook
           department: department,
-          semester: row.semester || 1,
-          year: row.year || 1,
-          dateOfBirth: row.dateOfBirth || new Date('2000-01-01'),
-          mobileNumber: row.mobileNumber || '',
-          address: row.address || '',
-          role: 'student',
-          isActive: true
-        });
+          semester: parseInt(row.semester) || 1
+        };
 
+        console.log('Creating student with data:', studentData);
+        
+        const student = await Student.create(studentData);
+
+        console.log(`Row ${i + 2}: Student created successfully - ${student.rollNumber}`);
+        
         results.success.push({
           row: i + 2,
           rollNumber: student.rollNumber,
           fullName: student.fullName,
-          email: student.email
+          email: student.email,
+          department: student.department
         });
 
       } catch (error) {
+        console.error(`Row ${i + 2} error:`, error.message);
         results.failed.push({
           row: i + 2,
           data: row,
@@ -118,6 +152,11 @@ const bulkUploadStudents = async (req, res) => {
       }
     }
 
+    console.log('\n=== UPLOAD COMPLETE ===');
+    console.log('Total:', results.total);
+    console.log('Success:', results.success.length);
+    console.log('Failed:', results.failed.length);
+
     res.status(200).json({
       success: true,
       message: `Processed ${results.total} records. Success: ${results.success.length}, Failed: ${results.failed.length}`,
@@ -125,7 +164,11 @@ const bulkUploadStudents = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Bulk upload error:', error);
+    console.error('=== BULK UPLOAD ERROR ===');
+    console.error('Error:', error);
+    console.error('Message:', error.message);
+    console.error('Stack:', error.stack);
+    
     res.status(500).json({
       success: false,
       message: 'Failed to process Excel file',
@@ -140,33 +183,28 @@ const bulkUploadStudents = async (req, res) => {
  */
 const downloadTemplate = async (req, res) => {
   try {
-    // Create sample data
+    // Create sample data with only required fields
     const sampleData = [
       {
-        rollNumber: 'CS2021001',
-        enrollmentNumber: 'EN2021CS001',
+        rollNumber: 'CS2025001',
+        enrollmentNumber: 'EN2025CS001',
         fullName: 'John Doe',
-        email: 'cs2021001@student.college.edu',
-        password: 'student123',
-        department: 'Computer',
-        semester: 3,
-        year: 2,
-        dateOfBirth: '2000-01-15',
-        mobileNumber: '9876543210',
-        address: 'Mumbai, Maharashtra'
+        semester: 1,
+        password: 'student123'
       },
       {
-        rollNumber: 'IT2021002',
-        enrollmentNumber: 'EN2021IT002',
+        rollNumber: 'IT2025002',
+        enrollmentNumber: 'EN2025IT002',
         fullName: 'Jane Smith',
-        email: 'it2021002@student.college.edu',
-        password: 'student123',
-        department: 'IT',
-        semester: 3,
-        year: 2,
-        dateOfBirth: '2000-05-20',
-        mobileNumber: '9876543211',
-        address: 'Pune, Maharashtra'
+        semester: 1,
+        password: 'student123'
+      },
+      {
+        rollNumber: 'ME2025003',
+        enrollmentNumber: 'EN2025ME003',
+        fullName: 'Mike Johnson',
+        semester: 1,
+        password: 'student123'
       }
     ];
 
@@ -178,15 +216,9 @@ const downloadTemplate = async (req, res) => {
     ws['!cols'] = [
       { wch: 15 }, // rollNumber
       { wch: 20 }, // enrollmentNumber
-      { wch: 20 }, // fullName
-      { wch: 30 }, // email
-      { wch: 15 }, // password
-      { wch: 15 }, // department
+      { wch: 25 }, // fullName
       { wch: 10 }, // semester
-      { wch: 10 }, // year
-      { wch: 15 }, // dateOfBirth
-      { wch: 15 }, // mobileNumber
-      { wch: 30 }  // address
+      { wch: 15 }  // password
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, 'Students');
