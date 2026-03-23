@@ -39,8 +39,21 @@ const complaintSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Pending', 'In Progress', 'Resolved', 'Rejected'],
+    enum: ['Pending', 'In Progress', 'Resolved', 'Rejected', 'Escalated'],
     default: 'Pending'
+  },
+  isEscalated: {
+    type: Boolean,
+    default: false
+  },
+  escalatedAt: {
+    type: Date,
+    default: null
+  },
+  feedback: {
+    rating: { type: Number, min: 1, max: 5, default: null },
+    comment: { type: String, default: null },
+    submittedAt: { type: Date, default: null }
   },
   image: {
     type: String,
@@ -91,7 +104,7 @@ const complaintSchema = new mongoose.Schema({
   statusHistory: [{
     status: {
       type: String,
-      enum: ['Pending', 'In Progress', 'Resolved', 'Rejected']
+      enum: ['Pending', 'In Progress', 'Resolved', 'Rejected', 'Escalated']
     },
     changedBy: {
       type: mongoose.Schema.Types.ObjectId,

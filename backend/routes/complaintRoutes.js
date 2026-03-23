@@ -5,37 +5,28 @@ const {
   getMyComplaints,
   getComplaintById,
   getAllComplaints,
-  updateComplaintStatus
+  updateComplaintStatus,
+  submitFeedback
 } = require('../controllers/complaintController');
 const { authenticate, authorizeStudent, authorizeAdmin } = require('../middleware/authMiddleware');
 const upload = require('../config/multerConfig');
 
-/**
- * STUDENT ROUTES
- */
-
-// Create new complaint (with optional image upload)
-// POST /api/complaints
+// Student: Create complaint
 router.post('/', authenticate, authorizeStudent, upload.single('image'), createComplaint);
 
-// Get my complaints
-// GET /api/complaints/my
+// Student: Get my complaints
 router.get('/my', authenticate, authorizeStudent, getMyComplaints);
 
-// Get single complaint (own only)
-// GET /api/complaints/:id
+// Student: Submit feedback on resolved complaint
+router.post('/:id/feedback', authenticate, authorizeStudent, submitFeedback);
+
+// Student: Get single complaint
 router.get('/:id', authenticate, authorizeStudent, getComplaintById);
 
-/**
- * ADMIN ROUTES
- */
-
-// Get all complaints (admin only)
-// GET /api/complaints
+// Admin: Get all complaints
 router.get('/', authenticate, authorizeAdmin, getAllComplaints);
 
-// Update complaint status (admin only)
-// PATCH /api/complaints/:id
+// Admin: Update complaint status
 router.patch('/:id', authenticate, authorizeAdmin, updateComplaintStatus);
 
 module.exports = router;

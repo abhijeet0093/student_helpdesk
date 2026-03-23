@@ -19,6 +19,8 @@ const notificationSchema = new mongoose.Schema({
       'complaint_assigned',
       'complaint_updated',
       'new_complaint',
+      'complaint_escalated',
+      'complaint_feedback',
       'post_liked',
       'post_commented'
     ]

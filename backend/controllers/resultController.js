@@ -257,20 +257,38 @@ const getMyResults = async (req, res) => {
   try {
     const studentId = req.userId;
 
-    // Get only released results for student
+    // Get student info to fetch their current semester
+    const student = await Student.findById(studentId);
+    
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: 'Student not found'
+      });
+    }
+
+    console.log('=== GET MY RESULTS DEBUG ===');
+    console.log('Student:', student.rollNumber, '-', student.fullName);
+    console.log('Student Semester:', student.semester);
+
+    // Get only released results for student's CURRENT SEMESTER
     const results = await UTResult.find({ 
       studentId: studentId,
+      semester: student.semester, // CRITICAL FIX: Filter by student's current semester
       isReleased: true 
     }).sort({ subjectName: 1, utType: 1 });
+
+    console.log('Results found for semester', student.semester, ':', results.length);
 
     if (results.length === 0) {
       return res.status(200).json({
         success: true,
-        message: 'No results released yet',
+        message: `No results released yet for Semester ${student.semester}`,
         data: {
           results: [],
           summary: null,
-          analysis: null
+          analysis: null,
+          currentSemester: student.semester
         }
       });
     }
@@ -279,10 +297,13 @@ const getMyResults = async (req, res) => {
     const subjectMap = new Map();
     
     results.forEach(result => {
+      console.log('Processing result:', result.subjectName, result.utType, 'Semester:', result.semester);
+      
       if (!subjectMap.has(result.subjectCode)) {
         subjectMap.set(result.subjectCode, {
           subjectCode: result.subjectCode,
           subjectName: result.subjectName,
+          semester: result.semester,
           ut1: null,
           ut2: null
         });
@@ -307,6 +328,8 @@ const getMyResults = async (req, res) => {
 
     // Convert map to array
     const groupedResults = Array.from(subjectMap.values());
+
+    console.log('Grouped results:', groupedResults.length, 'subjects');
 
     // Calculate totals
     const ut1Results = results.filter(r => r.utType === 'UT1');
@@ -347,7 +370,8 @@ const getMyResults = async (req, res) => {
       data: {
         results: groupedResults,
         summary: summary,
-        analysis: analysis
+        analysis: analysis,
+        currentSemester: student.semester
       }
     });
 

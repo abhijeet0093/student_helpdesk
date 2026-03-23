@@ -10,7 +10,6 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const Admin = require('../models/Admin');
 const Staff = require('../models/Staff');
 const Student = require('../models/Student');
-const StudentMaster = require('../models/StudentMaster');
 
 const checkType = process.argv[2] || 'all';
 
@@ -77,26 +76,6 @@ async function checkCredentials() {
       } else {
         console.log('❌ No students found');
         console.log('Students must register at: http://localhost:3000/register\n');
-      }
-    }
-
-    if (checkType === 'master' || checkType === 'all') {
-      console.log('\n📋 STUDENT MASTER DATA');
-      console.log('='.repeat(60));
-      const masters = await StudentMaster.find().select('rollNumber fullName department').limit(10);
-      const totalMasters = await StudentMaster.countDocuments();
-      
-      if (masters.length > 0) {
-        console.log(`Found ${totalMasters} valid roll numbers (showing first 10):\n`);
-        masters.forEach(m => {
-          console.log(`Roll Number: ${m.rollNumber}`);
-          console.log(`Name: ${m.fullName}`);
-          console.log(`Department: ${m.department}`);
-          console.log('-'.repeat(60));
-        });
-      } else {
-        console.log('❌ No StudentMaster data found');
-        console.log('Run: node backend/scripts/seedStudentMaster.js\n');
       }
     }
 

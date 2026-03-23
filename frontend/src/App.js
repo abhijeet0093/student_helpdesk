@@ -17,10 +17,11 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminComplaints from './pages/AdminComplaints';
 import AdminUTResults from './pages/AdminUTResults';
 import AdminStudents from './pages/AdminStudents';
+import AdminStaff from './pages/AdminStaff';
 import StaffDashboard from './pages/StaffDashboard';
 import StaffComplaints from './pages/StaffComplaints';
 import StaffUTResults from './pages/StaffUTResults';
-import './App.css';
+
 
 function App() {
   return (
@@ -141,6 +142,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminStudents />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/admin/staff" 
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminStaff />
               </ProtectedRoute>
             } 
           />

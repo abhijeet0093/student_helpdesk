@@ -89,6 +89,67 @@ app.listen(PORT, () => {
   console.log(`🌐 Base URL: http://localhost:${PORT}`);
   console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
   console.log('='.repeat(50));
+
+  // Auto-escalation: run every 6 hours
+  const Complaint = require('./models/Complaint');
+  const Admin = require('./models/Admin');
+  const { createNotification } = require('./controllers/notificationController');
+
+  async function runAutoEscalation() {
+    try {
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+      const toEscalate = await Complaint.find({
+        status: { $in: ['Pending', 'In Progress'] },
+        isEscalated: false,
+        createdAt: { $lte: threeDaysAgo }
+      });
+      if (toEscalate.length === 0) return;
+
+      const admin = await Admin.findOne();
+      for (const complaint of toEscalate) {
+        complaint.isEscalated = true;
+        complaint.escalatedAt = new Date();
+        complaint.status = 'Escalated';
+        complaint.statusHistory.push({
+          status: 'Escalated',
+          changedByName: 'System',
+          timestamp: new Date(),
+          note: 'Auto-escalated: not resolved within 3 days'
+        });
+        await complaint.save();
+
+        if (admin) {
+          await createNotification({
+            recipient: admin._id,
+            recipientModel: 'Admin',
+            type: 'complaint_escalated',
+            title: 'Complaint Escalated',
+            message: `Complaint ${complaint.complaintId} ("${complaint.title}") by ${complaint.studentName} auto-escalated after 3 days.`,
+            relatedId: complaint._id,
+            relatedModel: 'Complaint'
+          });
+        }
+        await createNotification({
+          recipient: complaint.student,
+          recipientModel: 'Student',
+          type: 'complaint_escalated',
+          title: 'Complaint Escalated',
+          message: `Your complaint "${complaint.title}" (${complaint.complaintId}) has been escalated to admin for priority resolution.`,
+          relatedId: complaint._id,
+          relatedModel: 'Complaint'
+        });
+      }
+      console.log(`[Auto-Escalation] Escalated ${toEscalate.length} complaint(s)`);
+    } catch (err) {
+      console.error('[Auto-Escalation] Error:', err.message);
+    }
+  }
+
+  // Run after DB connects, then every 6 hours
+  mongoose.connection.once('open', () => {
+    setTimeout(runAutoEscalation, 5000);
+    setInterval(runAutoEscalation, 6 * 60 * 60 * 1000);
+  });
 });
 
 module.exports = app;

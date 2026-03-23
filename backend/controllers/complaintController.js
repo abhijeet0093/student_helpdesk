@@ -44,6 +44,14 @@ async function createComplaint(req, res) {
     }
     
     console.log('✅ Student found:', student.fullName, student.rollNumber);
+
+    // Only active students can raise complaints
+    if (student.status && student.status !== 'active') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only active students can raise complaints.'
+      });
+    }
     
     // Create complaint data
     const complaintData = {
@@ -311,11 +319,49 @@ async function assignComplaint(req, res) {
   }
 }
 
+// Submit feedback for a resolved complaint (Student)
+async function submitFeedback(req, res) {
+  try {
+    const { rating, comment } = req.body;
+    const studentId = req.user?.userId || req.userId;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
+    }
+
+    const complaint = await Complaint.findById(req.params.id);
+    if (!complaint) {
+      return res.status(404).json({ success: false, message: 'Complaint not found' });
+    }
+
+    if (complaint.student.toString() !== studentId) {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+
+    if (complaint.status !== 'Resolved') {
+      return res.status(400).json({ success: false, message: 'Feedback can only be submitted for resolved complaints' });
+    }
+
+    if (complaint.feedback?.rating) {
+      return res.status(400).json({ success: false, message: 'Feedback already submitted' });
+    }
+
+    complaint.feedback = { rating, comment: comment || '', submittedAt: new Date() };
+    await complaint.save();
+
+    res.json({ success: true, message: 'Feedback submitted successfully' });
+  } catch (error) {
+    console.error('Submit feedback error:', error);
+    res.status(500).json({ success: false, message: 'Failed to submit feedback' });
+  }
+}
+
 module.exports = {
   createComplaint,
   getMyComplaints,
   getComplaintById,
   getAllComplaints,
   updateComplaintStatus,
-  assignComplaint
+  assignComplaint,
+  submitFeedback
 };

@@ -5,7 +5,11 @@ const {
   assignComplaint,
   getComplaintDetails,
   updateComplaintStatus,
-  getStaffList
+  getStaffList,
+  createStaff,
+  deleteStaff,
+  promoteStudents,
+  escalateComplaints
 } = require('../controllers/adminController');
 const { authenticate, authorizeAdmin } = require('../middleware/authMiddleware');
 
@@ -33,5 +37,19 @@ router.patch('/complaints/:id', authenticate, authorizeAdmin, updateComplaintSta
 // Get staff list
 // GET /api/admin/staff
 router.get('/staff', authenticate, authorizeAdmin, getStaffList);
+
+// Create staff member
+// POST /api/admin/staff
+router.post('/staff', authenticate, authorizeAdmin, createStaff);
+
+// Delete staff member
+// DELETE /api/admin/staff/:id
+router.delete('/staff/:id', authenticate, authorizeAdmin, deleteStaff);
+
+// Promote all active students to next academic year
+router.post('/promote-students', authenticate, authorizeAdmin, promoteStudents);
+
+// Auto-escalate unresolved complaints older than 3 days
+router.post('/escalate-complaints', authenticate, authorizeAdmin, escalateComplaints);
 
 module.exports = router;

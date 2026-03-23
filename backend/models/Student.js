@@ -37,6 +37,16 @@ const studentSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  year: {
+    type: Number,
+    required: true,
+    min: 1,
+    max: 4,
+    default: function() {
+      // Calculate year from semester: Sem 1-2 = Year 1, Sem 3-4 = Year 2, etc.
+      return Math.ceil(this.semester / 2);
+    }
+  },
   semester: {
     type: Number,
     required: true
@@ -45,6 +55,15 @@ const studentSchema = new mongoose.Schema({
     type: String,
     default: 'student',
     immutable: true
+  },
+  status: {
+    type: String,
+    enum: ['active', 'passed', 'archived'],
+    default: 'active'
+  },
+  graduationYear: {
+    type: Number,
+    default: null
   },
   isActive: {
     type: Boolean,

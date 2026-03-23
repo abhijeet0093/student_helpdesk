@@ -139,25 +139,40 @@ const bulkUploadStudents = async (req, res) => {
         
         console.log(`Department: ${finalDepartment}`);
 
-        // Determine semester from year if provided
+        // Determine year and semester from provided values
+        let finalYear = 1;
         let finalSemester = 1;
-        if (semester) {
-          finalSemester = parseInt(semester);
-        } else if (year) {
-          const yearStr = year.toString().toLowerCase();
-          if (yearStr.includes('first') || yearStr.includes('1')) {
-            finalSemester = 1;
-          } else if (yearStr.includes('second') || yearStr.includes('2')) {
-            finalSemester = 3;
-          } else if (yearStr.includes('third') || yearStr.includes('3')) {
-            finalSemester = 5;
+
+        if (year) {
+          const yearStr = year.toString().toLowerCase().trim();
+          if (yearStr.includes('first') || yearStr === '1') {
+            finalYear = 1;
+          } else if (yearStr.includes('second') || yearStr === '2') {
+            finalYear = 2;
+          } else if (yearStr.includes('third') || yearStr === '3') {
+            finalYear = 3;
+          } else if (yearStr.includes('fourth') || yearStr === '4') {
+            finalYear = 4;
+          } else {
+            const parsed = parseInt(yearStr);
+            finalYear = (!isNaN(parsed) && parsed >= 1 && parsed <= 4) ? parsed : 1;
           }
         }
 
-        // Generate default password (will be hashed by Student model pre-save hook)
-        const defaultPassword = password || 'student123';
+        if (semester) {
+          const parsedSem = parseInt(semester.toString().trim());
+          finalSemester = (!isNaN(parsedSem) && parsedSem >= 1 && parsedSem <= 8) ? parsedSem : (finalYear * 2) - 1;
+        } else {
+          // Default to first semester of the year
+          finalSemester = (finalYear * 2) - 1;
+        }
 
-        // Generate email
+        // Generate default password (will be hashed by Student model pre-save hook)
+        const defaultPassword = (password && password.toString().trim().length >= 8)
+          ? password.toString().trim()
+          : 'student@123';
+
+        // Generate email from roll number
         const email = `${rollNo.toLowerCase()}@student.college.edu`;
 
         // Check if student already exists
@@ -178,7 +193,7 @@ const bulkUploadStudents = async (req, res) => {
           continue;
         }
 
-        // Create student (password will be auto-hashed by pre-save hook)
+        // Create student — year is explicitly set to satisfy schema requirement
         const studentData = {
           rollNumber: rollNo,
           enrollmentNumber: enrollmentNumber.toString().trim().toUpperCase(),
@@ -186,6 +201,7 @@ const bulkUploadStudents = async (req, res) => {
           email: email.toLowerCase(),
           password: defaultPassword, // Will be hashed by pre-save hook
           department: finalDepartment,
+          year: finalYear,       // FIX: was missing — caused all inserts to fail
           semester: finalSemester
         };
 
@@ -221,7 +237,13 @@ const bulkUploadStudents = async (req, res) => {
     res.status(200).json({
       success: true,
       message: `Processed ${results.total} records. Success: ${results.success.length}, Failed: ${results.failed.length}`,
-      data: results
+      data: {
+        total: results.total,
+        success: results.success.length,
+        failed: results.failed.length,
+        successList: results.success,
+        errors: results.failed.map(f => ({ row: f.row, reason: f.error }))
+      }
     });
 
   } catch (error) {
@@ -244,28 +266,34 @@ const bulkUploadStudents = async (req, res) => {
  */
 const downloadTemplate = async (req, res) => {
   try {
-    // Create sample data matching common Excel formats
+    // Create sample data with clean headers that match getColumnValue mapping
     const sampleData = [
       {
         'rollNumber': '101',
-        'enrollmentNumber (Required)': 'ENR2024001',
-        'fullName (Required)': 'Aarav Patil',
+        'enrollmentNumber': 'ENR2024001',
+        'fullName': 'Aarav Patil',
         'department': 'Computer Engineering',
-        'year': 'Second Year'
+        'year': '2',
+        'semester': '3',
+        'password': 'student@123'
       },
       {
         'rollNumber': '102',
-        'enrollmentNumber (Required)': 'ENR2024002',
-        'fullName (Required)': 'Sneha Kulkarni',
+        'enrollmentNumber': 'ENR2024002',
+        'fullName': 'Sneha Kulkarni',
         'department': 'Computer Engineering',
-        'year': 'Second Year'
+        'year': '2',
+        'semester': '3',
+        'password': 'student@123'
       },
       {
         'rollNumber': '103',
-        'enrollmentNumber (Required)': 'ENR2024003',
-        'fullName (Required)': 'Rohit Sharma',
+        'enrollmentNumber': 'ENR2024003',
+        'fullName': 'Rohit Sharma',
         'department': 'Computer Engineering',
-        'year': 'Second Year'
+        'year': '2',
+        'semester': '3',
+        'password': 'student@123'
       }
     ];
 
@@ -276,10 +304,12 @@ const downloadTemplate = async (req, res) => {
     // Set column widths
     ws['!cols'] = [
       { wch: 15 }, // rollNumber
-      { wch: 25 }, // enrollmentNumber (Required)
-      { wch: 25 }, // fullName (Required)
+      { wch: 20 }, // enrollmentNumber
+      { wch: 25 }, // fullName
       { wch: 25 }, // department
-      { wch: 15 }  // year
+      { wch: 10 }, // year
+      { wch: 12 }, // semester
+      { wch: 15 }  // password
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, 'Students');
