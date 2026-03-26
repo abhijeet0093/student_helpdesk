@@ -9,7 +9,8 @@ const {
   createStaff,
   deleteStaff,
   promoteStudents,
-  escalateComplaints
+  escalateComplaints,
+  getStorageStats
 } = require('../controllers/adminController');
 const { authenticate, authorizeAdmin } = require('../middleware/authMiddleware');
 
@@ -51,5 +52,8 @@ router.post('/promote-students', authenticate, authorizeAdmin, promoteStudents);
 
 // Auto-escalate unresolved complaints older than 3 days
 router.post('/escalate-complaints', authenticate, authorizeAdmin, escalateComplaints);
+
+// Storage stats
+router.get('/storage-stats', authenticate, authorizeAdmin, getStorageStats);
 
 module.exports = router;

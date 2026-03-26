@@ -24,12 +24,12 @@ async function registerStudent(req, res) {
     console.log('=== STUDENT REGISTRATION DEBUG ===');
     console.log('Request Body:', req.body);
     
-    // Frontend sends: rollNumber, enrollmentNumber, fullName, semester, password
-    // Backend schema requires: rollNumber, enrollmentNumber, fullName, email, department, semester, password
-    const { rollNumber, enrollmentNumber, fullName, semester, password } = req.body;
+    // Frontend sends: rollNumber, enrollmentNumber, fullName, year, password
+    // Backend schema requires: rollNumber, enrollmentNumber, fullName, email, department, year, semester, password
+    const { rollNumber, enrollmentNumber, fullName, year, password } = req.body;
     
     // Validate required fields
-    if (!rollNumber || !enrollmentNumber || !fullName || !semester || !password) {
+    if (!rollNumber || !enrollmentNumber || !fullName || !year || !password) {
       console.error('Missing required fields');
       return res.status(400).json({
         success: false,
@@ -37,15 +37,17 @@ async function registerStudent(req, res) {
       });
     }
     
-    // Validate semester range
-    const semesterNum = parseInt(semester);
-    if (isNaN(semesterNum) || semesterNum < 1 || semesterNum > 8) {
-      console.error('Invalid semester:', semester);
+    // Validate year range (diploma: 1-3)
+    const yearNum = parseInt(year);
+    if (isNaN(yearNum) || yearNum < 1 || yearNum > 3) {
       return res.status(400).json({
         success: false,
-        message: 'Semester must be between 1 and 8'
+        message: 'Year must be between 1 and 3'
       });
     }
+
+    // Derive starting semester from year (Year 1 → Sem 1, Year 2 → Sem 3, Year 3 → Sem 5)
+    const semesterNum = (yearNum - 1) * 2 + 1;
     
     // Validate password length (must match schema minlength: 8)
     if (password.length < 8) {
@@ -92,7 +94,7 @@ async function registerStudent(req, res) {
     const department = departmentMap[departmentCode] || 'General';
     
     console.log('Department extracted:', departmentCode, '->', department);
-    console.log('Semester:', semesterNum);
+    console.log('Year:', yearNum, '→ Semester:', semesterNum);
     
     // Create new student (password will be hashed by pre-save hook)
     console.log('Creating student with data:', {
@@ -101,6 +103,7 @@ async function registerStudent(req, res) {
       fullName,
       email: generatedEmail,
       department,
+      year: yearNum,
       semester: semesterNum
     });
     
@@ -110,6 +113,7 @@ async function registerStudent(req, res) {
       fullName,
       email: generatedEmail,
       department,
+      year: yearNum,
       semester: semesterNum,
       password
     });
@@ -135,6 +139,7 @@ async function registerStudent(req, res) {
         fullName: student.fullName,
         email: student.email,
         department: student.department,
+        year: student.year,
         semester: student.semester,
         role: student.role
       }

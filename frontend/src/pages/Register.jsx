@@ -8,7 +8,7 @@ const Register = () => {
     rollNumber: '',
     enrollmentNumber: '',
     fullName: '',
-    semester: '1',
+    year: '1',
     password: '',
     confirmPassword: '',
   });
@@ -132,24 +132,22 @@ const Register = () => {
               />
             </div>
 
-            {/* Semester */}
+            {/* Year */}
             <div>
-              <label htmlFor="semester" className="block text-sm font-semibold text-gray-700 mb-2">
-                Semester <span className="text-red-500">*</span>
+              <label htmlFor="year" className="block text-sm font-semibold text-gray-700 mb-2">
+                Year <span className="text-red-500">*</span>
               </label>
               <select
-                id="semester"
-                name="semester"
-                value={formData.semester}
+                id="year"
+                name="year"
+                value={formData.year}
                 onChange={handleChange}
                 required
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-300 outline-none bg-white"
               >
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                  <option key={sem} value={sem}>
-                    Semester {sem}
-                  </option>
-                ))}
+                <option value="1">1st Year (Sem 1 - 2)</option>
+                <option value="2">2nd Year (Sem 3 - 4)</option>
+                <option value="3">3rd Year (Sem 5 - 6)</option>
               </select>
             </div>
 

@@ -257,48 +257,53 @@ const getMyResults = async (req, res) => {
   try {
     const studentId = req.userId;
 
-    // Get student info to fetch their current semester
     const student = await Student.findById(studentId);
-    
     if (!student) {
-      return res.status(404).json({
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+
+    // Use semester from query param if provided, otherwise fall back to student's current semester
+    const requestedSemester = req.query.semester
+      ? parseInt(req.query.semester)
+      : student.semester;
+
+    // Validate requested semester belongs to student's year
+    const yearBase = (student.year - 1) * 2;
+    const validSemesters = [yearBase + 1, yearBase + 2];
+    if (!validSemesters.includes(requestedSemester)) {
+      return res.status(400).json({
         success: false,
-        message: 'Student not found'
+        message: `Semester ${requestedSemester} does not belong to Year ${student.year}`
       });
     }
 
     console.log('=== GET MY RESULTS DEBUG ===');
-    console.log('Student:', student.rollNumber, '-', student.fullName);
-    console.log('Student Semester:', student.semester);
+    console.log('Student:', student.rollNumber, '| Year:', student.year, '| Requested Semester:', requestedSemester);
 
-    // Get only released results for student's CURRENT SEMESTER
-    const results = await UTResult.find({ 
+    const results = await UTResult.find({
       studentId: studentId,
-      semester: student.semester, // CRITICAL FIX: Filter by student's current semester
-      isReleased: true 
+      semester: requestedSemester,
+      isReleased: true
     }).sort({ subjectName: 1, utType: 1 });
 
-    console.log('Results found for semester', student.semester, ':', results.length);
+    console.log('Results found for semester', requestedSemester, ':', results.length);
 
     if (results.length === 0) {
       return res.status(200).json({
         success: true,
-        message: `No results released yet for Semester ${student.semester}`,
+        message: `No results released yet for Semester ${requestedSemester}`,
         data: {
           results: [],
           summary: null,
           analysis: null,
-          currentSemester: student.semester
+          currentSemester: requestedSemester
         }
       });
     }
 
     // Group results by subject
     const subjectMap = new Map();
-    
     results.forEach(result => {
-      console.log('Processing result:', result.subjectName, result.utType, 'Semester:', result.semester);
-      
       if (!subjectMap.has(result.subjectCode)) {
         subjectMap.set(result.subjectCode, {
           subjectCode: result.subjectCode,
@@ -308,9 +313,7 @@ const getMyResults = async (req, res) => {
           ut2: null
         });
       }
-
       const subject = subjectMap.get(result.subjectCode);
-      
       if (result.utType === 'UT1') {
         subject.ut1 = {
           marksObtained: result.marksObtained,
@@ -326,39 +329,31 @@ const getMyResults = async (req, res) => {
       }
     });
 
-    // Convert map to array
     const groupedResults = Array.from(subjectMap.values());
 
-    console.log('Grouped results:', groupedResults.length, 'subjects');
-
-    // Calculate totals
     const ut1Results = results.filter(r => r.utType === 'UT1');
     const ut2Results = results.filter(r => r.utType === 'UT2');
 
     const ut1Total = ut1Results.reduce((sum, r) => sum + r.marksObtained, 0);
     const ut1MaxTotal = ut1Results.reduce((sum, r) => sum + r.maxMarks, 0);
-    const ut1Percentage = ut1MaxTotal > 0 ? ((ut1Total / ut1MaxTotal) * 100).toFixed(2) : 0;
-
     const ut2Total = ut2Results.reduce((sum, r) => sum + r.marksObtained, 0);
     const ut2MaxTotal = ut2Results.reduce((sum, r) => sum + r.maxMarks, 0);
-    const ut2Percentage = ut2MaxTotal > 0 ? ((ut2Total / ut2MaxTotal) * 100).toFixed(2) : 0;
 
     const summary = {
       ut1: {
         totalMarks: ut1Total,
         maxMarks: ut1MaxTotal,
-        percentage: ut1Percentage,
+        percentage: ut1MaxTotal > 0 ? ((ut1Total / ut1MaxTotal) * 100).toFixed(2) : 0,
         subjectsCount: ut1Results.length
       },
       ut2: {
         totalMarks: ut2Total,
         maxMarks: ut2MaxTotal,
-        percentage: ut2Percentage,
+        percentage: ut2MaxTotal > 0 ? ((ut2Total / ut2MaxTotal) * 100).toFixed(2) : 0,
         subjectsCount: ut2Results.length
       }
     };
 
-    // Perform analysis if both UT results exist
     let analysis = null;
     if (ut1Results.length > 0 && ut2Results.length > 0) {
       analysis = analyzePerformance(ut1Results, ut2Results);
@@ -369,18 +364,15 @@ const getMyResults = async (req, res) => {
       success: true,
       data: {
         results: groupedResults,
-        summary: summary,
-        analysis: analysis,
-        currentSemester: student.semester
+        summary,
+        analysis,
+        currentSemester: requestedSemester
       }
     });
 
   } catch (error) {
     console.error('Get my results error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch results'
-    });
+    res.status(500).json({ success: false, message: 'Failed to fetch results' });
   }
 };
 

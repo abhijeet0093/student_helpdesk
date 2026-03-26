@@ -1,5 +1,9 @@
 const Post = require('../models/Post');
 const Student = require('../models/Student');
+const fs = require('fs');
+const path = require('path');
+const { compressImage } = require('../utils/imageCompressor');
+const { uploadPDF, deletePDF } = require('../services/googleDriveService');
 
 /**
  * CREATE POST
@@ -42,7 +46,21 @@ const createPost = async (req, res) => {
     }
 
     // Handle attachment if uploaded
-    const attachmentPath = req.file ? `/uploads/posts/${req.file.filename}` : null;
+    let attachmentPath = null;
+
+    if (req.file) {
+      const isPDF = req.file.mimetype === 'application/pdf';
+
+      if (isPDF) {
+        // Try uploading to Google Drive; fall back to local path
+        const driveUrl = await uploadPDF(req.file.path, req.file.filename);
+        attachmentPath = driveUrl || `/uploads/documents/${req.file.filename}`;
+      } else {
+        // Compress image in-place, then store local path
+        await compressImage(req.file.path, req.file.mimetype);
+        attachmentPath = `/uploads/images/${req.file.filename}`;
+      }
+    }
 
     // Create post
     const post = await Post.create({
@@ -341,7 +359,31 @@ const deletePost = async (req, res) => {
       });
     }
 
-    // Delete post
+    // Delete associated file before DB record
+    if (post.attachmentPath) {
+      const isDriveUrl = post.attachmentPath.startsWith('http');
+
+      if (isDriveUrl) {
+        // PDF on Google Drive
+        await deletePDF(post.attachmentPath);
+      } else {
+        // Local image/document file
+        const fullPath = path.join(__dirname, '..', post.attachmentPath);
+        if (fs.existsSync(fullPath)) {
+          try {
+            fs.unlinkSync(fullPath);
+          } catch (err) {
+            console.error('[deletePost] File deletion failed:', err.message);
+            return res.status(500).json({
+              success: false,
+              message: 'Failed to delete post attachment. Post not deleted.'
+            });
+          }
+        }
+      }
+    }
+
+    // Safe to delete DB record
     await Post.findByIdAndDelete(postId);
 
     res.status(200).json({

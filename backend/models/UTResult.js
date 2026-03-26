@@ -25,7 +25,7 @@ const utResultSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
-    max: 4
+    max: 3
   },
   subjectId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -84,7 +84,7 @@ const utResultSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
-    max: 8,
+    max: 6,
     index: true
   },
   createdAt: {

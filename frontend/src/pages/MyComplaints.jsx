@@ -18,9 +18,20 @@ const MyComplaints = () => {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
-  const [feedbackModal, setFeedbackModal] = useState(null); // complaint object
+  const [feedbackModal, setFeedbackModal] = useState(null);
   const [feedbackForm, setFeedbackForm] = useState({ rating: 0, comment: '' });
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  // Tab: 'active' | 'archived'
+  const [activeTab, setActiveTab] = useState('active');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const ACTIVE_STATUSES = ['Pending', 'In Progress', 'Escalated'];
+  const ARCHIVED_STATUSES = ['Resolved', 'Rejected'];
+
+  // Split by tab
+  const activeComplaints = complaints.filter(c => ACTIVE_STATUSES.includes(c.status));
+  const archivedComplaints = complaints.filter(c => ARCHIVED_STATUSES.includes(c.status));
+  const tabComplaints = activeTab === 'active' ? activeComplaints : archivedComplaints;
 
   useEffect(() => {
     fetchComplaints();
@@ -56,12 +67,23 @@ const MyComplaints = () => {
   };
 
   const getFilteredComplaints = () => {
-    if (filter === 'all') return complaints;
-    if (filter === 'pending') return complaints.filter(c => c.status === 'Pending');
-    if (filter === 'inProgress') return complaints.filter(c => c.status === 'In Progress');
-    if (filter === 'resolved') return complaints.filter(c => c.status === 'Resolved');
-    if (filter === 'escalated') return complaints.filter(c => c.status === 'Escalated' || c.isEscalated);
-    return complaints;
+    let list = tabComplaints;
+    // Status sub-filter (only meaningful on active tab)
+    if (filter !== 'all') {
+      const map = { pending: 'Pending', inProgress: 'In Progress', resolved: 'Resolved', escalated: 'Escalated', rejected: 'Rejected' };
+      if (map[filter]) list = list.filter(c => c.status === map[filter]);
+    }
+    // Search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(c =>
+        c.title?.toLowerCase().includes(q) ||
+        c.description?.toLowerCase().includes(q) ||
+        c.complaintId?.toLowerCase().includes(q) ||
+        c.category?.toLowerCase().includes(q)
+      );
+    }
+    return list;
   };
 
   const handleFeedbackSubmit = async () => {
@@ -196,26 +218,67 @@ const MyComplaints = () => {
         </header>
 
         <main className="flex-1 overflow-y-auto p-6">
-          {/* Filter Tabs */}
-          <div className="bg-white rounded-2xl shadow-lg p-2 mb-6 flex gap-2 overflow-x-auto animate-slide-up" style={{ animationDelay: '0.1s' }}>
-            {[
-              { key: 'all', label: `All (${complaints.length})` },
-              { key: 'pending', label: `Pending (${complaints.filter(c => c.status === 'Pending').length})` },
-              { key: 'inProgress', label: `In Progress (${complaints.filter(c => c.status === 'In Progress').length})` },
-              { key: 'resolved', label: `Resolved (${complaints.filter(c => c.status === 'Resolved').length})` },
-              { key: 'escalated', label: `Escalated (${complaints.filter(c => c.isEscalated).length})` },
-            ].map(tab => (
-              <button key={tab.key} onClick={() => setFilter(tab.key)}
-                className={`px-4 py-2.5 rounded-xl font-semibold transition-all duration-300 whitespace-nowrap text-sm ${
-                  filter === tab.key
-                    ? tab.key === 'escalated'
-                      ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-md'
-                      : 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-md'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}>
-                {tab.label}
-              </button>
-            ))}
+          {/* Active / Archived Tabs */}
+          <div className="bg-white rounded-2xl shadow-lg p-1.5 mb-4 flex gap-1 animate-slide-up" style={{ animationDelay: '0.05s' }}>
+            <button onClick={() => { setActiveTab('active'); setFilter('all'); }}
+              className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all duration-300 ${
+                activeTab === 'active'
+                  ? 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-md'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}>
+              Active
+              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${activeTab === 'active' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                {activeComplaints.length}
+              </span>
+            </button>
+            <button onClick={() => { setActiveTab('archived'); setFilter('all'); }}
+              className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all duration-300 ${
+                activeTab === 'archived'
+                  ? 'bg-gradient-to-r from-gray-500 to-gray-600 text-white shadow-md'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}>
+              Archived
+              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${activeTab === 'archived' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                {archivedComplaints.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Search + Status Filter */}
+          <div className="flex flex-col sm:flex-row gap-3 mb-6 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+            {/* Search */}
+            <div className="relative flex-1">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search by title, ID or category..."
+                className="w-full pl-9 pr-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400 transition-colors shadow-sm"
+              />
+            </div>
+            {/* Status sub-filter */}
+            <select
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              className="bg-white border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 focus:outline-none focus:border-indigo-400 transition-colors shadow-sm"
+            >
+              <option value="all">All Statuses</option>
+              {activeTab === 'active' ? (
+                <>
+                  <option value="pending">Pending</option>
+                  <option value="inProgress">In Progress</option>
+                  <option value="escalated">Escalated</option>
+                </>
+              ) : (
+                <>
+                  <option value="resolved">Resolved</option>
+                  <option value="rejected">Rejected</option>
+                </>
+              )}
+            </select>
           </div>
 
           {/* Messages */}

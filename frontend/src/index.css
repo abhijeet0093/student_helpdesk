@@ -302,3 +302,12 @@
 .p-20 {
   padding: 20px;
 }
+
+/* Toast progress bar shrink animation */
+@keyframes shrink {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+.animate-shrink {
+  animation: shrink 4s linear forwards;
+}

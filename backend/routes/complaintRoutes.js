@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const {
   createComplaint,
   getMyComplaints,
@@ -11,8 +12,22 @@ const {
 const { authenticate, authorizeStudent, authorizeAdmin } = require('../middleware/authMiddleware');
 const upload = require('../config/multerConfig');
 
+// Multer error handler for complaint image upload
+const handleUpload = (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ success: false, message: 'Image size exceeds 2MB limit' });
+    }
+    if (err.code === 'INVALID_FILE_TYPE') {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    return res.status(400).json({ success: false, message: 'File upload failed' });
+  });
+};
+
 // Student: Create complaint
-router.post('/', authenticate, authorizeStudent, upload.single('image'), createComplaint);
+router.post('/', authenticate, authorizeStudent, handleUpload, createComplaint);
 
 // Student: Get my complaints
 router.get('/my', authenticate, authorizeStudent, getMyComplaints);

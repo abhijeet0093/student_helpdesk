@@ -1,19 +1,14 @@
 const mongoose = require('mongoose');
 
-/**
- * MongoDB Connection Configuration
- * Connects to local MongoDB instance
- */
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
     });
-
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    console.error(`Error: ${error.message}`);
+    console.error('❌ MongoDB Connection Failed:', error.message);
     process.exit(1);
   }
 };

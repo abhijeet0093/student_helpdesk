@@ -527,6 +527,87 @@ async function escalateComplaints(req, res) {
   }
 }
 
+/**
+ * STORAGE STATS (Admin Only)
+ * GET /api/admin/storage-stats
+ */
+async function getStorageStats(req, res) {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const mongoose = require('mongoose');
+    const Student = require('../models/Student');
+    const Post = require('../models/Post');
+    const UTResult = require('../models/UTResult');
+    const ChatMessage = require('../models/ChatMessage');
+    const Notification = require('../models/Notification');
+
+    // DB counts in parallel
+    const [users, complaints, posts, results, chatMessages, notifications] = await Promise.all([
+      Student.countDocuments(),
+      Complaint.countDocuments(),
+      Post.countDocuments(),
+      UTResult.countDocuments(),
+      ChatMessage.countDocuments(),
+      Notification.countDocuments()
+    ]);
+
+    // MongoDB DB size via dbStats command
+    let databaseSizeMB = 0;
+    let storageSizeMB = 0;
+    try {
+      const dbStats = await mongoose.connection.db.stats();
+      databaseSizeMB = parseFloat((dbStats.dataSize / (1024 * 1024)).toFixed(2));
+      storageSizeMB = parseFloat((dbStats.storageSize / (1024 * 1024)).toFixed(2));
+    } catch (_) {
+      // Atlas free tier may restrict dbStats — fallback to 0
+    }
+
+    // Uploads folder: count files + total size
+    const uploadsDir = path.join(__dirname, '..', 'uploads');
+    let fileCount = 0;
+    let uploadsSizeBytes = 0;
+
+    if (fs.existsSync(uploadsDir)) {
+      const walk = (dir) => {
+        fs.readdirSync(dir).forEach(file => {
+          const fullPath = path.join(dir, file);
+          const stat = fs.statSync(fullPath);
+          if (stat.isDirectory()) walk(fullPath);
+          else {
+            fileCount++;
+            uploadsSizeBytes += stat.size;
+          }
+        });
+      };
+      walk(uploadsDir);
+    }
+
+    const uploadsSizeMB = parseFloat((uploadsSizeBytes / (1024 * 1024)).toFixed(2));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        users,
+        complaints,
+        posts,
+        chatMessages,
+        notifications,
+        results,
+        databaseSizeMB,
+        storageSizeMB,
+        uploads: {
+          totalFiles: fileCount,
+          totalSizeMB: uploadsSizeMB
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Storage stats error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch storage stats' });
+  }
+}
+
 module.exports = {
   getAllComplaints,
   assignComplaint,
@@ -536,5 +617,6 @@ module.exports = {
   createStaff,
   deleteStaff,
   promoteStudents,
-  escalateComplaints
+  escalateComplaints,
+  getStorageStats
 };

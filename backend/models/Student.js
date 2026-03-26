@@ -41,15 +41,16 @@ const studentSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
-    max: 4,
+    max: 3,
     default: function() {
-      // Calculate year from semester: Sem 1-2 = Year 1, Sem 3-4 = Year 2, etc.
       return Math.ceil(this.semester / 2);
     }
   },
   semester: {
     type: Number,
-    required: true
+    required: true,
+    min: 1,
+    max: 6
   },
   role: {
     type: String,

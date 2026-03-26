@@ -12,6 +12,9 @@ npm-debug.log*
 # Uploads
 uploads/
 
+# Backups (do not commit to git)
+backup/
+
 # OS files
 .DS_Store
 Thumbs.db

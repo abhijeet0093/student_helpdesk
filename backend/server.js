@@ -15,9 +15,8 @@ app.use(cors());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/smart_campus_db')
-  .then(() => console.log('✅ MongoDB Connected Successfully'))
-  .catch((err) => console.error('❌ MongoDB Connection Error:', err.message));
+const connectDB = require('./config/db');
+connectDB();
 
 // Base Route
 app.get('/', (req, res) => {
@@ -89,6 +88,10 @@ app.listen(PORT, () => {
   console.log(`🌐 Base URL: http://localhost:${PORT}`);
   console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
   console.log('='.repeat(50));
+
+  // Start daily backup scheduler
+  const { startBackupScheduler } = require('./services/backupScheduler');
+  startBackupScheduler();
 
   // Auto-escalation: run every 6 hours
   const Complaint = require('./models/Complaint');

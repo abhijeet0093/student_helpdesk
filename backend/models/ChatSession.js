@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 /**
  * ChatSession Schema
  * Stores chat sessions for each student
- * One student can have multiple sessions
+ * TTL: Sessions auto-deleted after 30 days of inactivity
  */
 const chatSessionSchema = new mongoose.Schema({
   studentId: {
@@ -18,9 +18,13 @@ const chatSessionSchema = new mongoose.Schema({
   },
   lastActiveAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
+    index: true
   }
 });
+
+// TTL index: auto-delete sessions after 30 days of inactivity (2592000 seconds)
+chatSessionSchema.index({ lastActiveAt: 1 }, { expireAfterSeconds: 2592000 });
 
 // Update lastActiveAt on any activity
 chatSessionSchema.methods.updateActivity = function() {

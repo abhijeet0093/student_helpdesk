@@ -32,13 +32,13 @@ const UTResults = () => {
   const [selectedSemester, setSelectedSemester] = useState(user?.semester || 1);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  useEffect(() => { fetchResults(); }, []);
   useEffect(() => { if (user?.semester) setSelectedSemester(user.semester); }, [user]);
+  useEffect(() => { fetchResults(selectedSemester); }, [selectedSemester]);
 
-  const fetchResults = async () => {
+  const fetchResults = async (semester) => {
     try {
       setLoading(true); setError('');
-      const response = await resultService.getMyResults();
+      const response = await resultService.getMyResults(semester);
       if (response.success) setResultsData(response.data);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load results');

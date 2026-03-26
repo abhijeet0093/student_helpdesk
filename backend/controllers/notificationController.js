@@ -148,7 +148,14 @@ async function deleteNotification(req, res) {
 // Helper function to create notification (used by other controllers)
 async function createNotification(data) {
   try {
-    const notification = await Notification.create(data);
+    const now = new Date();
+    const isStudent = data.recipientModel === 'Student';
+
+    // Student → 30 days, Admin/Staff → 60 days
+    const daysToExpire = isStudent ? 30 : 60;
+    const expireAt = new Date(now.getTime() + daysToExpire * 24 * 60 * 60 * 1000);
+
+    const notification = await Notification.create({ ...data, expireAt });
     return notification;
   } catch (error) {
     console.error('Create notification error:', error);

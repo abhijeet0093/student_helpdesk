@@ -2,58 +2,49 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-/**
- * Multer Storage Configuration
- * Stores complaint images in organized folder structure
- */
+// Allowed MIME types and their extensions (strict whitelist)
+const ALLOWED_IMAGE_TYPES = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png'
+};
+
+// Storage: uploads/images/
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    // Create uploads/complaints folder if doesn't exist
-    const uploadPath = 'uploads/complaints';
-    
+    const uploadPath = 'uploads/images';
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
-    
     cb(null, uploadPath);
   },
-  
+
   filename: function (req, file, cb) {
-    // Generate unique filename: originalname_timestamp.ext
-    const originalName = file.originalname.replace(/\s+/g, '_');
-    const timestamp = Date.now();
-    const ext = path.extname(originalName);
-    const nameWithoutExt = path.basename(originalName, ext);
-    const fileName = `${nameWithoutExt}_${timestamp}${ext}`;
-    
-    cb(null, fileName);
+    // Secure filename: timestamp_randomhex.ext (never trust original name)
+    const ext = ALLOWED_IMAGE_TYPES[file.mimetype] || '.jpg';
+    const filename = `${Date.now()}_${Math.random().toString(36).substring(2, 10)}${ext}`;
+    cb(null, filename);
   }
 });
 
-/**
- * File Filter - Only allow images
- */
+// File filter: validate MIME type AND extension
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|gif/;
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
-  
-  if (extname && mimetype) {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowedExts = ['.jpg', '.jpeg', '.png'];
+
+  if (ALLOWED_IMAGE_TYPES[file.mimetype] && allowedExts.includes(ext)) {
     return cb(null, true);
-  } else {
-    cb(new Error('Only image files are allowed (JPG, PNG, GIF)'));
   }
+
+  const err = new Error('Only JPG and PNG images are allowed');
+  err.code = 'INVALID_FILE_TYPE';
+  cb(err, false);
 };
 
-/**
- * Multer Upload Configuration
- */
+// Upload config: images max 2MB
 const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024  // 5MB limit
-  },
-  fileFilter: fileFilter
+  storage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  fileFilter
 });
 
 module.exports = upload;

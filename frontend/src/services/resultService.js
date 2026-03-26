@@ -1,9 +1,10 @@
 import api from './api';
 
 const resultService = {
-  // Get my results (Student)
-  getMyResults: async () => {
-    const response = await api.get('/results/my');
+  // Get my results (Student) - filtered by semester
+  getMyResults: async (semester) => {
+    const params = semester ? `?semester=${semester}` : '';
+    const response = await api.get(`/results/my${params}`);
     return response.data;
   },
 

@@ -48,10 +48,18 @@ const notificationSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  expireAt: {
+    type: Date,
+    required: true
+    // Student → 30 days, Admin/Staff → 60 days (set in createNotification)
   }
 });
 
 // Index for faster queries
 notificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
+
+// TTL index: MongoDB auto-deletes document when current time passes expireAt
+notificationSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import postService from '../services/postService';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 
 const StudentCorner = () => {
   const navigate = useNavigate();
@@ -24,6 +24,29 @@ const StudentCorner = () => {
   const [fileType, setFileType] = useState(null);
   const [commentText, setCommentText] = useState({});
   const [showComments, setShowComments] = useState({});
+  // Tab: 'active' | 'archived'
+  const [activeTab, setActiveTab] = useState('active');
+
+  const DAILY_POST_LIMIT = 5;
+  const SIX_MONTHS_MS = 6 * 30 * 24 * 60 * 60 * 1000;
+
+  // Count posts created today by this student
+  const todayPostCount = posts.filter(p => {
+    const isToday = new Date(p.createdAt).toDateString() === new Date().toDateString();
+    const isMine = p.studentRollNumber === user?.rollNumber;
+    return isToday && isMine;
+  }).length;
+
+  const dailyLimitReached = todayPostCount >= DAILY_POST_LIMIT;
+
+  // Split posts into active (< 6 months) and archived (6–12 months)
+  const now = Date.now();
+  const activePosts = posts.filter(p => now - new Date(p.createdAt).getTime() < SIX_MONTHS_MS);
+  const archivedPosts = posts.filter(p => {
+    const age = now - new Date(p.createdAt).getTime();
+    return age >= SIX_MONTHS_MS;
+  });
+  const displayedPosts = activeTab === 'active' ? activePosts : archivedPosts;
 
   useEffect(() => {
     if (location.state?.message) {
@@ -71,23 +94,30 @@ const StudentCorner = () => {
   };
 
   const handleLike = async (postId) => {
+    // Optimistic update
+    setPosts(prev => prev.map(p =>
+      p.id === postId
+        ? { ...p, likesCount: p.isLikedByMe ? p.likesCount - 1 : p.likesCount + 1, isLikedByMe: !p.isLikedByMe }
+        : p
+    ));
+
     try {
       const response = await postService.toggleLike(postId);
-      
       if (response.success) {
-        setPosts(prevPosts =>
-          prevPosts.map(post =>
-            post.id === postId
-              ? {
-                  ...post,
-                  likesCount: response.data.likesCount,
-                  isLikedByMe: response.data.isLiked
-                }
-              : post
-          )
-        );
+        // Sync with server truth
+        setPosts(prev => prev.map(p =>
+          p.id === postId
+            ? { ...p, likesCount: response.data.likesCount, isLikedByMe: response.data.isLiked }
+            : p
+        ));
       }
     } catch (err) {
+      // Revert on failure
+      setPosts(prev => prev.map(p =>
+        p.id === postId
+          ? { ...p, likesCount: p.isLikedByMe ? p.likesCount - 1 : p.likesCount + 1, isLikedByMe: !p.isLikedByMe }
+          : p
+      ));
       console.error('Like error:', err);
     }
   };
@@ -96,24 +126,42 @@ const StudentCorner = () => {
     const text = commentText[postId];
     if (!text || !text.trim()) return;
 
+    // Optimistic update
+    const tempComment = {
+      id: `temp_${Date.now()}`,
+      studentName: user?.name || 'You',
+      text: text.trim(),
+      timestamp: new Date().toISOString()
+    };
+    setPosts(prev => prev.map(p =>
+      p.id === postId
+        ? { ...p, commentsCount: p.commentsCount + 1, comments: [...p.comments, tempComment] }
+        : p
+    ));
+    setCommentText(prev => ({ ...prev, [postId]: '' }));
+
     try {
       const response = await postService.addComment(postId, text);
-      
       if (response.success) {
-        setPosts(prevPosts =>
-          prevPosts.map(post =>
-            post.id === postId
-              ? {
-                  ...post,
-                  commentsCount: response.data.commentsCount,
-                  comments: [...post.comments, response.data.comment]
-                }
-              : post
-          )
-        );
-        setCommentText(prev => ({ ...prev, [postId]: '' }));
+        // Replace temp comment with real one from server
+        setPosts(prev => prev.map(p =>
+          p.id === postId
+            ? {
+                ...p,
+                commentsCount: response.data.commentsCount,
+                comments: p.comments.map(c => c.id === tempComment.id ? response.data.comment : c)
+              }
+            : p
+        ));
       }
     } catch (err) {
+      // Revert on failure
+      setPosts(prev => prev.map(p =>
+        p.id === postId
+          ? { ...p, commentsCount: p.commentsCount - 1, comments: p.comments.filter(c => c.id !== tempComment.id) }
+          : p
+      ));
+      setCommentText(prev => ({ ...prev, [postId]: text }));
       console.error('Comment error:', err);
     }
   };
@@ -127,6 +175,11 @@ const StudentCorner = () => {
   const handleCreatePost = async (e) => {
     e.preventDefault();
     if (!newPost.trim() || postingNew) return;
+
+    if (dailyLimitReached) {
+      setError('You can only post 5 times per day');
+      return;
+    }
 
     try {
       setPostingNew(true);
@@ -359,7 +412,7 @@ const StudentCorner = () => {
               {/* Post Button */}
               <button
                 type="submit"
-                disabled={!newPost.trim() || postingNew}
+                disabled={!newPost.trim() || postingNew || dailyLimitReached}
                 className="bg-gradient-to-r from-indigo-500 to-blue-600 text-white px-8 py-2.5 rounded-xl shadow-md hover:shadow-xl hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 font-semibold"
               >
                 {postingNew ? (
@@ -376,6 +429,46 @@ const StudentCorner = () => {
               </button>
             </div>
           </form>
+        </div>
+
+        {/* Daily limit warning */}
+        {dailyLimitReached && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-xl mb-6 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">⚠️</span>
+              <p className="text-sm text-yellow-800 font-medium">You can only post 5 times per day. Try again tomorrow.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="bg-white rounded-2xl shadow-md p-1.5 mb-6 flex gap-1 border border-gray-100">
+          <button
+            onClick={() => setActiveTab('active')}
+            className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all duration-300 ${
+              activeTab === 'active'
+                ? 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Active Posts
+            <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${activeTab === 'active' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+              {activePosts.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('archived')}
+            className={`flex-1 py-2.5 rounded-xl font-semibold text-sm transition-all duration-300 ${
+              activeTab === 'archived'
+                ? 'bg-gradient-to-r from-gray-500 to-gray-600 text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            Archived
+            <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${activeTab === 'archived' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+              {archivedPosts.length}
+            </span>
+          </button>
         </div>
 
         {/* Error Message */}
@@ -396,7 +489,7 @@ const StudentCorner = () => {
         )}
 
         {/* Posts Feed - LinkedIn Style */}
-        {posts.length === 0 && !error ? (
+        {displayedPosts.length === 0 && !error ? (
           <div className="bg-white rounded-2xl shadow-lg p-12 text-center animate-bounce-in">
             <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-indigo-100 to-blue-200 rounded-full flex items-center justify-center">
               <svg className="w-10 h-10 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -414,7 +507,7 @@ const StudentCorner = () => {
           </div>
         ) : (
           <div className="space-y-6">
-            {posts.map((post, index) => (
+            {displayedPosts.map((post, index) => (
               <div
                 key={post.id}
                 style={{ animationDelay: `${index * 0.1}s` }}
@@ -431,14 +524,19 @@ const StudentCorner = () => {
                         <h3 className="font-bold text-gray-900 text-lg">{post.studentName || 'Student'}</h3>
                         <p className="text-sm text-gray-500">{post.studentRollNumber || 'Roll Number'}</p>
                       </div>
-                      <span className="text-xs text-gray-400">
-                        {new Date(post.createdAt).toLocaleDateString('en-US', { 
-                          month: 'short', 
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {activeTab === 'archived' && (
+                          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">Archived</span>
+                        )}
+                        <span className="text-xs text-gray-400">
+                          {new Date(post.createdAt).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -453,14 +551,14 @@ const StudentCorner = () => {
                   <div className="mb-4">
                     {post.attachmentPath.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
                       <img
-                        src={`${BACKEND_URL}${post.attachmentPath}`}
+                        src={post.attachmentPath.startsWith('http') ? post.attachmentPath : `${BACKEND_URL}${post.attachmentPath}`}
                         alt="Post attachment"
                         className="w-full rounded-xl object-cover max-h-96 shadow-md cursor-pointer hover:opacity-95 transition-opacity"
-                        onClick={() => window.open(`${BACKEND_URL}${post.attachmentPath}`, '_blank')}
+                        onClick={() => window.open(post.attachmentPath.startsWith('http') ? post.attachmentPath : `${BACKEND_URL}${post.attachmentPath}`, '_blank')}
                       />
-                    ) : post.attachmentPath.match(/\.pdf$/i) ? (
+                    ) : (post.attachmentPath.match(/\.pdf$/i) || post.attachmentPath.startsWith('http')) ? (
                       <a
-                        href={`${BACKEND_URL}${post.attachmentPath}`}
+                        href={post.attachmentPath.startsWith('http') ? post.attachmentPath : `${BACKEND_URL}${post.attachmentPath}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-3 bg-red-50 border-2 border-red-200 rounded-xl p-4 hover:bg-red-100 hover:scale-[1.02] transition-all duration-300"

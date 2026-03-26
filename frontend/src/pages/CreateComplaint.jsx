@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import Alert from '../components/Alert';
+import Toast from '../components/Toast';
 
 const MENU = [
   { name: 'Dashboard', path: '/dashboard' },
@@ -43,6 +45,7 @@ function CreateComplaint() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState(null);
   const [form, setForm] = useState({ title: '', category: '', description: '', priority: 'medium' });
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -70,7 +73,11 @@ function CreateComplaint() {
       formData.append('priority', form.priority);
       if (image) formData.append('image', image);
       await api.post('/complaints', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      navigate('/complaints', { state: { message: 'Complaint submitted successfully!' } });
+      setToast({ type: 'success', message: 'Complaint submitted successfully!' });
+      setForm({ title: '', category: '', description: '', priority: 'medium' });
+      setImage(null);
+      setImagePreview(null);
+      setTimeout(() => navigate('/complaints'), 1500);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to submit complaint. Please try again.');
     } finally {
@@ -80,6 +87,7 @@ function CreateComplaint() {
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 animate-fade-in">
+      <Toast toast={toast} onClose={() => setToast(null)} />
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-gradient-to-b from-indigo-600 via-indigo-700 to-indigo-900 text-white transition-all duration-300 flex flex-col shadow-2xl relative z-20 overflow-hidden`}>
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-purple-600/20 opacity-50"></div>
@@ -158,7 +166,9 @@ function CreateComplaint() {
               </div>
 
               {error && (
-                <div className="mb-5 p-4 bg-red-50 border-l-4 border-red-500 rounded-xl text-sm text-red-700">{error}</div>
+                <div className="mb-5">
+                  <Alert type="error" message={error} onClose={() => setError('')} />
+                </div>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-5">

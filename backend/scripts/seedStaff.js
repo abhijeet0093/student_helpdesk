@@ -17,13 +17,13 @@ const seedStaff = async () => {
     await Staff.deleteMany({});
     console.log('Cleared existing staff');
     
-    // Create staff members
-    const staffMembers = [
+    // Create staff members one by one so pre-save hook hashes passwords
+    const staffData = [
       {
         name: 'Rajesh Kumar',
         email: 'rajesh.staff@college.edu',
         department: 'Computer Science',
-        password: 'staff123'  // Will be hashed by pre-save hook
+        password: 'staff123'
       },
       {
         name: 'Priya Sharma',
@@ -32,8 +32,12 @@ const seedStaff = async () => {
         password: 'staff123'
       }
     ];
-    
-    await Staff.insertMany(staffMembers);
+
+    const staffMembers = [];
+    for (const data of staffData) {
+      const staff = await Staff.create(data);
+      staffMembers.push(staff);
+    }
     
     console.log('✅ Staff created successfully!');
     console.log(`\n${staffMembers.length} staff members added:`);

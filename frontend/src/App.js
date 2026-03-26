@@ -18,6 +18,7 @@ import AdminComplaints from './pages/AdminComplaints';
 import AdminUTResults from './pages/AdminUTResults';
 import AdminStudents from './pages/AdminStudents';
 import AdminStaff from './pages/AdminStaff';
+import StorageStats from './pages/StorageStats';
 import StaffDashboard from './pages/StaffDashboard';
 import StaffComplaints from './pages/StaffComplaints';
 import StaffUTResults from './pages/StaffUTResults';
@@ -153,6 +154,15 @@ function App() {
                 <AdminStaff />
               </ProtectedRoute>
             } 
+          />
+
+          <Route
+            path="/admin/storage-stats"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <StorageStats />
+              </ProtectedRoute>
+            }
           />
           
           {/* Staff Routes */}
