@@ -7,6 +7,11 @@ const BACKUP_ROOT = path.join(__dirname, '..', 'backup');
 const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
 const MAX_BACKUPS = 7;
 
+// Lazy-load BackupLog to avoid circular deps at startup
+function getBackupLog() {
+  return require('../models/BackupLog');
+}
+
 // ─── Logging ────────────────────────────────────────────────────────────────
 
 function getLogPath(dateFolder) {
@@ -91,36 +96,68 @@ function cleanOldBackups(dateFolder) {
 
 async function runBackup() {
   const dateFolder = getTodayFolder();
-
   log(dateFolder, 'Backup Started');
 
+  let dbPath = null;
+  let uploadsPath = null;
+  let dbError = null;
+  let uploadsError = null;
+
+  // DB backup
   try {
-    // DB backup
-    try {
-      await backupDatabase(dateFolder);
-      log(dateFolder, 'DB Backup Success');
-    } catch (err) {
-      log(dateFolder, `ERROR (DB): ${err.message}`);
-    }
-
-    // Uploads backup
-    try {
-      const result = await backupUploads(dateFolder);
-      if (result) {
-        log(dateFolder, 'Uploads Backup Success');
-      } else {
-        log(dateFolder, 'Uploads folder not found — skipped');
-      }
-    } catch (err) {
-      log(dateFolder, `ERROR (Uploads): ${err.message}`);
-    }
-
-    // Clean old backups only after current backup completes
-    cleanOldBackups(dateFolder);
-
-    log(dateFolder, 'Backup Completed');
+    dbPath = await backupDatabase(dateFolder);
+    log(dateFolder, 'DB Backup Success');
   } catch (err) {
-    log(dateFolder, `ERROR: ${err.message}`);
+    dbError = err.message;
+    log(dateFolder, `ERROR (DB): ${err.message}`);
+  }
+
+  // Uploads backup
+  try {
+    const result = await backupUploads(dateFolder);
+    if (result) {
+      uploadsPath = result;
+      log(dateFolder, 'Uploads Backup Success');
+    } else {
+      log(dateFolder, 'Uploads folder not found — skipped');
+    }
+  } catch (err) {
+    uploadsError = err.message;
+    log(dateFolder, `ERROR (Uploads): ${err.message}`);
+  }
+
+  // Clean old backups
+  cleanOldBackups(dateFolder);
+
+  // Determine overall status
+  let status, message;
+  if (!dbError && !uploadsError) {
+    status = 'SUCCESS';
+    message = 'Backup completed successfully';
+  } else if (dbError && uploadsError) {
+    status = 'FAILED';
+    message = `DB: ${dbError} | Uploads: ${uploadsError}`;
+  } else {
+    status = 'PARTIAL';
+    message = dbError
+      ? `DB backup failed: ${dbError}. Uploads OK.`
+      : `Uploads backup failed: ${uploadsError}. DB OK.`;
+  }
+
+  log(dateFolder, `Backup ${status}: ${message}`);
+
+  // Save to MongoDB
+  try {
+    const BackupLog = getBackupLog();
+    await BackupLog.create({
+      status,
+      message,
+      dbBackupPath: dbPath,
+      uploadsBackupPath: uploadsPath,
+      backupDate: new Date()
+    });
+  } catch (err) {
+    log(dateFolder, `WARNING: Could not save backup log to DB: ${err.message}`);
   }
 }
 

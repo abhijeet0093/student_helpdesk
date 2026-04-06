@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import dashboardService from '../services/dashboardService';
 import resultService from '../services/resultService';
 import Loader from '../components/Loader';
+import NotificationDropdown from '../components/NotificationDropdown';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 const StudentDashboard = () => {
@@ -98,6 +99,17 @@ const StudentDashboard = () => {
   }
 
   const { studentInfo, complaintStats, recentComplaint, utAnalytics } = dashboardData;
+
+  // Extract latest UT data for the BarChart from RAW flat array
+  let chartData = [];
+  let latestSemesterData = null; // Removed complex logic fallback
+  if (resultsData && Array.isArray(resultsData) && resultsData.length > 0) {
+    chartData = resultsData.slice(0, 6).map(b => ({
+      name: b.subjectCode || b.subjectName?.substring(0, 10),
+      marks: b.marksObtained || 0,
+      maxMarks: b.maxMarks || 100
+    }));
+  }
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -258,12 +270,7 @@ const StudentDashboard = () => {
           
           <div className="flex items-center gap-4">
             {/* Notification Bell */}
-            <button className="relative p-3 text-gray-600 hover:bg-indigo-50 rounded-xl transition-all duration-300 hover:scale-110 group">
-              <svg className="w-6 h-6 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/50"></span>
-            </button>
+            <NotificationDropdown />
 
             {/* Profile */}
             <div className="flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl hover:shadow-md transition-all duration-300 cursor-pointer group">
@@ -309,7 +316,7 @@ const StudentDashboard = () => {
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                     </svg>
-                    Year {studentInfo.year} &bull; Sem {studentInfo.year ? (studentInfo.year - 1) * 2 + 1 : studentInfo.semester}-{studentInfo.year ? (studentInfo.year - 1) * 2 + 2 : studentInfo.semester}
+                    Year {Math.ceil(studentInfo.semester / 2) || studentInfo.year || 1} &bull; Sem {studentInfo.semester}
                   </span>
                 </p>
               </div>
@@ -384,7 +391,7 @@ const StudentDashboard = () => {
           </div>
 
           {/* Analytics Charts Section - Only show if data is available */}
-          {(complaintStats.total > 0 || utAnalytics || (resultsData && resultsData.results && resultsData.results.length > 0)) && (
+          {(complaintStats.total > 0 || utAnalytics || chartData.length > 0) && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 transition-all duration-500">
               {/* Complaint Status Pie Chart - Only show if complaints exist */}
               {complaintStats.total > 0 && (
@@ -422,16 +429,12 @@ const StudentDashboard = () => {
               )}
 
               {/* UT Performance Bar Chart - Only show if results exist */}
-              {(resultsData && resultsData.results && resultsData.results.length > 0) && (
+              {chartData.length > 0 && (
                 <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
-                  <h2 className="text-xl font-bold text-gray-900 mb-6">Latest UT Performance</h2>
+                  <h2 className="text-xl font-bold text-gray-900 mb-6">Latest UT Performance (Sem {latestSemesterData?.semester})</h2>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart
-                      data={resultsData.results.slice(0, 6).map(subject => ({
-                        name: subject.subjectCode || subject.subjectName.substring(0, 10),
-                        marks: subject.ut2?.marksObtained || subject.ut1?.marksObtained || 0,
-                        maxMarks: subject.ut2?.maxMarks || subject.ut1?.maxMarks || 100
-                      }))}
+                      data={chartData}
                       margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" />
@@ -602,7 +605,7 @@ const StudentDashboard = () => {
           )}
 
           {/* No Analytics Message */}
-          {!utAnalytics && !resultsData?.results?.length && (
+          {!utAnalytics && chartData.length === 0 && (
             <div className="bg-blue-50 border-l-4 border-blue-500 p-6 rounded-xl mb-8">
               <div className="flex items-center">
                 <svg className="w-6 h-6 text-blue-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

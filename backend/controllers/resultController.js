@@ -176,7 +176,7 @@ const enterResult = async (req, res) => {
       existingResult.subjectName = subjectName.trim();
       existingResult.enteredBy = staffId;
       existingResult.enteredByModel = 'Staff';
-      existingResult.isReleased = false; // Reset release status on update
+      existingResult.isPublished = false; // Reset release status on update
       await existingResult.save();
 
       console.log('Result updated successfully');
@@ -210,7 +210,7 @@ const enterResult = async (req, res) => {
       maxMarks: parseFloat(maxMarks),
       enteredBy: staffId,
       enteredByModel: 'Staff',
-      isReleased: false
+      isPublished: false
     });
 
     console.log('Result created successfully:', result._id);
@@ -262,111 +262,29 @@ const getMyResults = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Student not found' });
     }
 
-    // Use semester from query param if provided, otherwise fall back to student's current semester
-    const requestedSemester = req.query.semester
-      ? parseInt(req.query.semester)
-      : student.semester;
+    const yearSemesterMap = {
+      1: [1, 2],
+      2: [3, 4],
+      3: [5, 6]
+    };
 
-    // Validate requested semester belongs to student's year
-    const yearBase = (student.year - 1) * 2;
-    const validSemesters = [yearBase + 1, yearBase + 2];
-    if (!validSemesters.includes(requestedSemester)) {
-      return res.status(400).json({
-        success: false,
-        message: `Semester ${requestedSemester} does not belong to Year ${student.year}`
-      });
-    }
-
-    console.log('=== GET MY RESULTS DEBUG ===');
-    console.log('Student:', student.rollNumber, '| Year:', student.year, '| Requested Semester:', requestedSemester);
+    const studentYear = student.year || 1;
+    const validSemesters = yearSemesterMap[studentYear] || [1, 2];
 
     const results = await UTResult.find({
       studentId: studentId,
-      semester: requestedSemester,
-      isReleased: true
-    }).sort({ subjectName: 1, utType: 1 });
+      semester: { $in: validSemesters },
+      isPublished: true
+    }).sort({ semester: 1, utType: 1, subjectName: 1 });
 
-    console.log('Results found for semester', requestedSemester, ':', results.length);
-
-    if (results.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: `No results released yet for Semester ${requestedSemester}`,
-        data: {
-          results: [],
-          summary: null,
-          analysis: null,
-          currentSemester: requestedSemester
-        }
-      });
-    }
-
-    // Group results by subject
-    const subjectMap = new Map();
-    results.forEach(result => {
-      if (!subjectMap.has(result.subjectCode)) {
-        subjectMap.set(result.subjectCode, {
-          subjectCode: result.subjectCode,
-          subjectName: result.subjectName,
-          semester: result.semester,
-          ut1: null,
-          ut2: null
-        });
-      }
-      const subject = subjectMap.get(result.subjectCode);
-      if (result.utType === 'UT1') {
-        subject.ut1 = {
-          marksObtained: result.marksObtained,
-          maxMarks: result.maxMarks,
-          percentage: result.percentage.toFixed(2)
-        };
-      } else if (result.utType === 'UT2') {
-        subject.ut2 = {
-          marksObtained: result.marksObtained,
-          maxMarks: result.maxMarks,
-          percentage: result.percentage.toFixed(2)
-        };
-      }
-    });
-
-    const groupedResults = Array.from(subjectMap.values());
-
-    const ut1Results = results.filter(r => r.utType === 'UT1');
-    const ut2Results = results.filter(r => r.utType === 'UT2');
-
-    const ut1Total = ut1Results.reduce((sum, r) => sum + r.marksObtained, 0);
-    const ut1MaxTotal = ut1Results.reduce((sum, r) => sum + r.maxMarks, 0);
-    const ut2Total = ut2Results.reduce((sum, r) => sum + r.marksObtained, 0);
-    const ut2MaxTotal = ut2Results.reduce((sum, r) => sum + r.maxMarks, 0);
-
-    const summary = {
-      ut1: {
-        totalMarks: ut1Total,
-        maxMarks: ut1MaxTotal,
-        percentage: ut1MaxTotal > 0 ? ((ut1Total / ut1MaxTotal) * 100).toFixed(2) : 0,
-        subjectsCount: ut1Results.length
-      },
-      ut2: {
-        totalMarks: ut2Total,
-        maxMarks: ut2MaxTotal,
-        percentage: ut2MaxTotal > 0 ? ((ut2Total / ut2MaxTotal) * 100).toFixed(2) : 0,
-        subjectsCount: ut2Results.length
-      }
-    };
-
-    let analysis = null;
-    if (ut1Results.length > 0 && ut2Results.length > 0) {
-      analysis = analyzePerformance(ut1Results, ut2Results);
-      analysis.textSummary = generateSummary(analysis);
-    }
+    console.log('[getMyResults] Student year:', studentYear, '| Valid sems:', validSemesters, '| Found:', results.length);
 
     res.status(200).json({
       success: true,
-      data: {
-        results: groupedResults,
-        summary,
-        analysis,
-        currentSemester: requestedSemester
+      data: results,
+      meta: {
+        studentYear,
+        validSemesters
       }
     });
 
@@ -457,16 +375,22 @@ const getStudentResults = async (req, res) => {
 const getStaffResults = async (req, res) => {
   try {
     const { semester, department, utType } = req.query;
+    const staffId = req.userId;
 
-    const query = { isReleased: false };
-    
+    // Staff sees ALL results they entered (both published and unpublished)
+    const query = { enteredBy: staffId };
+
     if (semester) query.semester = parseInt(semester);
     if (department) query.department = department;
     if (utType) query.utType = utType;
 
+    console.log('[getStaffResults] Query:', query);
+
     const results = await UTResult.find(query)
       .sort({ createdAt: -1 })
       .limit(100);
+
+    console.log('[getStaffResults] Found:', results.length);
 
     res.status(200).json({
       success: true,
@@ -489,14 +413,14 @@ const getStaffResults = async (req, res) => {
  */
 const getAdminResults = async (req, res) => {
   try {
-    const { semester, department, utType, isReleased } = req.query;
+    const { semester, department, utType, isPublished } = req.query;
 
     const query = {};
     
     if (semester) query.semester = parseInt(semester);
     if (department) query.department = department;
     if (utType) query.utType = utType;
-    if (isReleased !== undefined) query.isReleased = isReleased === 'true';
+    if (isPublished !== undefined) query.isPublished = isPublished === 'true';
 
     const results = await UTResult.find(query)
       .sort({ createdAt: -1 });
@@ -504,8 +428,8 @@ const getAdminResults = async (req, res) => {
     // Get statistics
     const stats = {
       total: results.length,
-      released: results.filter(r => r.isReleased).length,
-      draft: results.filter(r => !r.isReleased).length,
+      released: results.filter(r => r.isPublished).length,
+      draft: results.filter(r => !r.isPublished).length,
       ut1: results.filter(r => r.utType === 'UT1').length,
       ut2: results.filter(r => r.utType === 'UT2').length
     };
@@ -546,7 +470,7 @@ const releaseResults = async (req, res) => {
     const query = {
       semester: parseInt(semester),
       utType: utType,
-      isReleased: false
+      isPublished: false
     };
 
     if (department) {
@@ -555,6 +479,7 @@ const releaseResults = async (req, res) => {
 
     // Find results to release
     const resultsToRelease = await UTResult.find(query);
+    console.log('[releaseResults] Query:', query, '| Found:', resultsToRelease.length);
 
     if (resultsToRelease.length === 0) {
       return res.status(404).json({
@@ -568,7 +493,7 @@ const releaseResults = async (req, res) => {
       query,
       {
         $set: {
-          isReleased: true,
+          isPublished: true,
           releasedBy: adminId,
           releasedAt: new Date()
         }

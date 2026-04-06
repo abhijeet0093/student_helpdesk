@@ -66,7 +66,7 @@ const utResultSchema = new mongoose.Schema({
     type: String,
     enum: ['Admin', 'Staff']
   },
-  isReleased: {
+  isPublished: {
     type: Boolean,
     default: false,
     index: true

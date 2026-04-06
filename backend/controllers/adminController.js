@@ -608,6 +608,41 @@ async function getStorageStats(req, res) {
   }
 }
 
+/**
+ * BACKUP STATUS (Admin Only)
+ * GET /api/admin/backup-status
+ */
+async function getBackupStatus(req, res) {
+  try {
+    const BackupLog = require('../models/BackupLog');
+
+    const recentBackups = await BackupLog.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('status message dbBackupPath uploadsBackupPath backupDate createdAt');
+
+    const lastBackup = recentBackups[0] || null;
+
+    // Warn if last backup is older than 24 hours
+    const hoursAgo = lastBackup
+      ? Math.floor((Date.now() - new Date(lastBackup.createdAt).getTime()) / (1000 * 60 * 60))
+      : null;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        lastBackup,
+        recentBackups,
+        hoursAgo,
+        warning: hoursAgo === null || hoursAgo > 24
+      }
+    });
+  } catch (error) {
+    console.error('Backup status error:', error);
+    res.status(500).json({ success: false, message: 'Failed to fetch backup status' });
+  }
+}
+
 module.exports = {
   getAllComplaints,
   assignComplaint,
@@ -618,5 +653,6 @@ module.exports = {
   deleteStaff,
   promoteStudents,
   escalateComplaints,
-  getStorageStats
+  getStorageStats,
+  getBackupStatus
 };

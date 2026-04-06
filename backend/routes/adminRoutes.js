@@ -10,7 +10,8 @@ const {
   deleteStaff,
   promoteStudents,
   escalateComplaints,
-  getStorageStats
+  getStorageStats,
+  getBackupStatus
 } = require('../controllers/adminController');
 const { authenticate, authorizeAdmin } = require('../middleware/authMiddleware');
 
@@ -55,5 +56,8 @@ router.post('/escalate-complaints', authenticate, authorizeAdmin, escalateCompla
 
 // Storage stats
 router.get('/storage-stats', authenticate, authorizeAdmin, getStorageStats);
+
+// Backup status
+router.get('/backup-status', authenticate, authorizeAdmin, getBackupStatus);
 
 module.exports = router;

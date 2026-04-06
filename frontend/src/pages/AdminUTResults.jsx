@@ -270,11 +270,11 @@ const AdminUTResults = () => {
                         </td>
                         <td className="px-6 py-4">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            result.isReleased 
+                            result.isPublished 
                               ? 'bg-green-100 text-green-700' 
                               : 'bg-orange-100 text-orange-700'
                           }`}>
-                            {result.isReleased ? 'Released' : 'Draft'}
+                            {result.isPublished ? 'Released' : 'Draft'}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-500">

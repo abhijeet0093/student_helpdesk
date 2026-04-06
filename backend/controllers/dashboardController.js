@@ -37,28 +37,29 @@ const getDashboardData = async (req, res) => {
       .select('complaintId category status createdAt updatedAt')
       .limit(1);
 
-    // Get UT Results for current semester analytics
+    // Get UT Results analytics — use year-based semesters, not stale semester field
     let utAnalytics = null;
-    
-    if (student.year && student.semester) {
-      // Fetch UT results for current semester only
-      const ut1Results = await UTResult.find({
-        studentId: studentId,
-        year: student.year,
-        semester: student.semester,
-        utType: 'UT1',
-        isReleased: true
-      }).select('subjectName subjectCode marksObtained maxMarks percentage');
 
-      const ut2Results = await UTResult.find({
-        studentId: studentId,
-        year: student.year,
-        semester: student.semester,
-        utType: 'UT2',
-        isReleased: true
-      }).select('subjectName subjectCode marksObtained maxMarks percentage');
+    if (student.year) {
+      const yearBase = (student.year - 1) * 2;
+      const sem1 = yearBase + 1;
+      const sem2 = yearBase + 2;
 
-      // Calculate analytics if results exist
+      const [ut1Sem1, ut2Sem1, ut1Sem2, ut2Sem2] = await Promise.all([
+        UTResult.find({ studentId, semester: sem1, utType: 'UT1', isPublished: true })
+          .select('subjectName subjectCode marksObtained maxMarks percentage'),
+        UTResult.find({ studentId, semester: sem1, utType: 'UT2', isPublished: true })
+          .select('subjectName subjectCode marksObtained maxMarks percentage'),
+        UTResult.find({ studentId, semester: sem2, utType: 'UT1', isPublished: true })
+          .select('subjectName subjectCode marksObtained maxMarks percentage'),
+        UTResult.find({ studentId, semester: sem2, utType: 'UT2', isPublished: true })
+          .select('subjectName subjectCode marksObtained maxMarks percentage'),
+      ]);
+
+      // Use whichever semester has data (prefer sem2 if both have data)
+      const ut1Results = ut1Sem2.length > 0 ? ut1Sem2 : ut1Sem1;
+      const ut2Results = ut2Sem2.length > 0 ? ut2Sem2 : ut2Sem1;
+
       if (ut1Results.length > 0 || ut2Results.length > 0) {
         utAnalytics = calculateUTAnalytics(ut1Results, ut2Results);
       }
