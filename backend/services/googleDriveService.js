@@ -2,37 +2,29 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Google Drive PDF Upload Service
+ * Google Drive Upload Service
+ * No manual folder sharing needed — service account creates its own folder.
  *
- * SETUP REQUIRED (one-time):
- * 1. Go to https://console.cloud.google.com
- * 2. Create a project → Enable "Google Drive API"
- * 3. Create a Service Account → Download JSON key
- * 4. Share your Drive folder with the service account email
- * 5. Add to .env:
+ * SETUP:
+ * 1. Place JSON key at: backend/config/google-service-account.json
+ * 2. Add to .env:
  *    GOOGLE_SERVICE_ACCOUNT_KEY=./config/google-service-account.json
- *    GOOGLE_DRIVE_FOLDER_ID=your_folder_id_here
- *
- * Until credentials are configured, uploadPDF returns null
- * and the local file path is used as fallback.
  */
 
 let driveClient = null;
+let cachedFolderId = null;
 
 async function getDriveClient() {
   if (driveClient) return driveClient;
 
   const keyPath = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-
-  if (!keyPath || !folderId) return null;
-  if (!fs.existsSync(path.resolve(keyPath))) return null;
+  if (!keyPath || !fs.existsSync(path.resolve(keyPath))) return null;
 
   try {
     const { google } = require('googleapis');
     const auth = new google.auth.GoogleAuth({
       keyFile: path.resolve(keyPath),
-      scopes: ['https://www.googleapis.com/auth/drive.file']
+      scopes: ['https://www.googleapis.com/auth/drive']
     });
     driveClient = google.drive({ version: 'v3', auth });
     return driveClient;
@@ -42,76 +34,88 @@ async function getDriveClient() {
   }
 }
 
-/**
- * Upload a PDF file to Google Drive.
- * @param {string} localFilePath - absolute path to the temp PDF file
- * @param {string} filename - desired filename on Drive
- * @returns {Promise<string|null>} public URL or null if Drive not configured
- */
-async function uploadPDF(localFilePath, filename) {
-  const drive = await getDriveClient();
+async function getOrCreateFolder(drive) {
+  if (process.env.GOOGLE_DRIVE_FOLDER_ID) return process.env.GOOGLE_DRIVE_FOLDER_ID;
+  if (cachedFolderId) return cachedFolderId;
 
+  try {
+    const existing = await drive.files.list({
+      q: "name='SmartCampus-Uploads' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+      fields: 'files(id)'
+    });
+
+    if (existing.data.files.length > 0) {
+      cachedFolderId = existing.data.files[0].id;
+      return cachedFolderId;
+    }
+
+    const folder = await drive.files.create({
+      requestBody: { name: 'SmartCampus-Uploads', mimeType: 'application/vnd.google-apps.folder' },
+      fields: 'id'
+    });
+    cachedFolderId = folder.data.id;
+    console.log('[GoogleDrive] Created folder:', cachedFolderId);
+    return cachedFolderId;
+  } catch (err) {
+    console.error('[GoogleDrive] Folder error:', err.message);
+    return null;
+  }
+}
+
+async function uploadFile(localFilePath, filename, mimeType) {
+  const drive = await getDriveClient();
   if (!drive) {
-    console.warn('[GoogleDrive] Not configured — PDF stored locally as fallback');
+    console.warn('[GoogleDrive] Not configured — file stored locally as fallback');
     return null;
   }
 
   try {
-    const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+    const folderId = await getOrCreateFolder(drive);
+    if (!folderId) return null;
 
     const response = await drive.files.create({
-      requestBody: {
-        name: filename,
-        parents: [folderId],
-        mimeType: 'application/pdf'
-      },
-      media: {
-        mimeType: 'application/pdf',
-        body: fs.createReadStream(localFilePath)
-      },
+      requestBody: { name: filename, parents: [folderId], mimeType },
+      media: { mimeType, body: fs.createReadStream(localFilePath) },
       fields: 'id, webViewLink'
     });
 
-    const fileId = response.data.id;
-
-    // Make file publicly readable
     await drive.permissions.create({
-      fileId,
+      fileId: response.data.id,
       requestBody: { role: 'reader', type: 'anyone' }
     });
 
-    // Delete local temp file after successful upload
     fs.unlink(localFilePath, () => {});
-
-    console.log('[GoogleDrive] PDF uploaded:', response.data.webViewLink);
+    console.log('[GoogleDrive] Uploaded:', response.data.webViewLink);
     return response.data.webViewLink;
-
   } catch (err) {
     console.error('[GoogleDrive] Upload failed:', err.message);
     return null;
   }
 }
 
-/**
- * Delete a file from Google Drive by file ID.
- * @param {string} fileUrl - the webViewLink stored in DB
- */
-async function deletePDF(fileUrl) {
-  if (!fileUrl) return;
+async function uploadPDF(localFilePath, filename) {
+  return uploadFile(localFilePath, filename, 'application/pdf');
+}
 
+async function uploadImage(localFilePath, filename, mimeType = 'image/jpeg') {
+  return uploadFile(localFilePath, filename, mimeType);
+}
+
+async function deleteDriveFile(fileUrl) {
+  if (!fileUrl) return;
   const drive = await getDriveClient();
   if (!drive) return;
 
   try {
-    // Extract file ID from URL: https://drive.google.com/file/d/FILE_ID/view
     const match = fileUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
     if (!match) return;
-
     await drive.files.delete({ fileId: match[1] });
-    console.log('[GoogleDrive] PDF deleted:', match[1]);
+    console.log('[GoogleDrive] Deleted:', match[1]);
   } catch (err) {
     console.error('[GoogleDrive] Delete failed:', err.message);
   }
 }
 
-module.exports = { uploadPDF, deletePDF };
+const deletePDF = deleteDriveFile;
+
+module.exports = { uploadPDF, uploadImage, deletePDF, deleteDriveFile };

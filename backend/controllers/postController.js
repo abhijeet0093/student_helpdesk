@@ -3,7 +3,8 @@ const Student = require('../models/Student');
 const fs = require('fs');
 const path = require('path');
 const { compressImage } = require('../utils/imageCompressor');
-const { uploadPDF, deletePDF } = require('../services/googleDriveService');
+const { uploadPDF: driveUploadPDF, deletePDF: driveDeletePDF } = require('../services/googleDriveService');
+const cloudinary = require('../services/cloudinaryService');
 
 /**
  * CREATE POST
@@ -52,13 +53,14 @@ const createPost = async (req, res) => {
       const isPDF = req.file.mimetype === 'application/pdf';
 
       if (isPDF) {
-        // Try uploading to Google Drive; fall back to local path
-        const driveUrl = await uploadPDF(req.file.path, req.file.filename);
-        attachmentPath = driveUrl || `/uploads/documents/${req.file.filename}`;
+        // Try Cloudinary first, fall back to local
+        const cloudUrl = await cloudinary.uploadPDF(req.file.path);
+        attachmentPath = cloudUrl || `/uploads/documents/${req.file.filename}`;
       } else {
-        // Compress image in-place, then store local path
+        // Compress image then try Cloudinary, fall back to local
         await compressImage(req.file.path, req.file.mimetype);
-        attachmentPath = `/uploads/images/${req.file.filename}`;
+        const cloudUrl = await cloudinary.uploadImage(req.file.path);
+        attachmentPath = cloudUrl || `/uploads/images/${req.file.filename}`;
       }
     }
 
@@ -361,13 +363,14 @@ const deletePost = async (req, res) => {
 
     // Delete associated file before DB record
     if (post.attachmentPath) {
-      const isDriveUrl = post.attachmentPath.startsWith('http');
+      const isCloudinary = post.attachmentPath.includes('cloudinary.com');
+      const isDriveUrl = post.attachmentPath.startsWith('http') && !isCloudinary;
 
-      if (isDriveUrl) {
-        // PDF on Google Drive
-        await deletePDF(post.attachmentPath);
+      if (isCloudinary) {
+        await cloudinary.deleteFile(post.attachmentPath);
+      } else if (isDriveUrl) {
+        await driveDeletePDF(post.attachmentPath);
       } else {
-        // Local image/document file
         const fullPath = path.join(__dirname, '..', post.attachmentPath);
         if (fs.existsSync(fullPath)) {
           try {
