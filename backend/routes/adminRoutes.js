@@ -60,4 +60,21 @@ router.get('/storage-stats', authenticate, authorizeAdmin, getStorageStats);
 // Backup status
 router.get('/backup-status', authenticate, authorizeAdmin, getBackupStatus);
 
+// ─── MSBTE routes ─────────────────────────────────────────────────────────────
+const {
+  getPendingMSBTEResults,
+  approveMSBTEResult,
+  rejectMSBTEResult,
+  publishMSBTEResults,
+  archiveUTResults,
+  getAllMSBTEResults
+} = require('../controllers/msbteController');
+
+router.get('/msbte-results',              authenticate, authorizeAdmin, getAllMSBTEResults);
+router.get('/msbte-results/pending',      authenticate, authorizeAdmin, getPendingMSBTEResults);
+router.post('/msbte-results/:id/approve', authenticate, authorizeAdmin, approveMSBTEResult);
+router.post('/msbte-results/:id/reject',  authenticate, authorizeAdmin, rejectMSBTEResult);
+router.post('/publish-msbte-results',     authenticate, authorizeAdmin, publishMSBTEResults);
+router.post('/archive-ut-results',        authenticate, authorizeAdmin, archiveUTResults);
+
 module.exports = router;

@@ -1,14 +1,20 @@
 import api from './api';
 
 const resultService = {
-  // Get my results (Student) - pass null to get all for student's year
+  // Get my UT results (Student)
   getMyResults: async (semester) => {
     const params = semester != null ? `?semester=${semester}` : '';
     const response = await api.get(`/results/my${params}`);
     return response.data;
   },
 
-  // Enter result (Teacher/Admin)
+  // Get my approved MSBTE results (Student)
+  getMyMSBTEResults: async () => {
+    const response = await api.get('/results/msbte');
+    return response.data;
+  },
+
+  // Enter UT result (Staff/Admin)
   enterResult: async (data) => {
     const response = await api.post('/results', data);
     return response.data;

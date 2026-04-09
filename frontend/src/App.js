@@ -23,6 +23,9 @@ import BackupStatus from './pages/BackupStatus';
 import StaffDashboard from './pages/StaffDashboard';
 import StaffComplaints from './pages/StaffComplaints';
 import StaffUTResults from './pages/StaffUTResults';
+import StaffMSBTEResults from './pages/StaffMSBTEResults';
+import AdminMSBTEResults from './pages/AdminMSBTEResults';
+import MSBTEResults from './pages/MSBTEResults';
 
 
 function App() {
@@ -91,6 +94,15 @@ function App() {
                 <ResultAnalysis />
               </ProtectedRoute>
             } 
+          />
+
+          <Route
+            path="/msbte-results"
+            element={
+              <ProtectedRoute allowedRoles={['student']}>
+                <MSBTEResults />
+              </ProtectedRoute>
+            }
           />
           
           <Route 
@@ -201,6 +213,24 @@ function App() {
                 <StaffUTResults />
               </ProtectedRoute>
             } 
+          />
+
+          <Route
+            path="/staff/msbte-results"
+            element={
+              <ProtectedRoute allowedRoles={['staff']}>
+                <StaffMSBTEResults />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/msbte-results"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminMSBTEResults />
+              </ProtectedRoute>
+            }
           />
           
           {/* Unauthorized page */}

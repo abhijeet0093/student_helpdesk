@@ -71,6 +71,11 @@ const utResultSchema = new mongoose.Schema({
     default: false,
     index: true
   },
+  isArchived: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
   releasedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Admin',

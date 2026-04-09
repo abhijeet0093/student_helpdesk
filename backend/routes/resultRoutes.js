@@ -43,4 +43,22 @@ router.get('/student/:rollNo', authenticate, authorizeAdmin, getStudentResults);
 // GET /api/results/subjects/:year/:semester
 router.get('/subjects/:year/:semester', authenticate, getSubjectsForSemesterAPI);
 
+// ─── MSBTE + UT combined routes ───────────────────────────────────────────────
+const {
+  submitMSBTEResult,
+  getStaffMSBTEResults,
+  getMyMSBTEResults,
+  getMyUTResults
+} = require('../controllers/msbteController');
+
+// Staff: submit MSBTE result for approval
+router.post('/msbte',        authenticate, authorizeStaff, submitMSBTEResult);
+router.get('/msbte/staff',   authenticate, authorizeStaff, getStaffMSBTEResults);
+
+// Student: get approved MSBTE results
+router.get('/msbte',         authenticate, authorizeStudent, getMyMSBTEResults);
+
+// Student: get UT results (current + archived)
+router.get('/ut/all',        authenticate, authorizeStudent, getMyUTResults);
+
 module.exports = router;
