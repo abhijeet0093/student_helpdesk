@@ -30,7 +30,13 @@ const AIChat = () => {
     try {
       const response = await aiService.getChatHistory(50);
       if (response.success && response.data.messages) {
-        setMessages(response.data.messages.map(msg => ({ sender: msg.sender, text: msg.message, timestamp: msg.timestamp })));
+        // Replace entire state with DB truth — avoids duplicates on refresh
+        setMessages(response.data.messages.map(msg => ({
+          id: msg.id,
+          sender: msg.sender,
+          text: msg.text,
+          timestamp: msg.timestamp
+        })));
       }
     } catch (err) { /* start fresh */ }
   };
@@ -41,12 +47,23 @@ const AIChat = () => {
     if (inputMessage.trim().length > 1000) { setError('Message is too long (max 1000 characters)'); return; }
     const userMessage = inputMessage.trim();
     setInputMessage(''); setError('');
-    setMessages(prev => [...prev, { sender: 'student', text: userMessage, timestamp: new Date().toISOString() }]);
+    // Optimistic: add student message with a temp id
+    const tempId = `temp_${Date.now()}`;
+    setMessages(prev => [...prev, { id: tempId, sender: 'student', text: userMessage, timestamp: new Date().toISOString() }]);
     setIsTyping(true);
     try {
       const response = await aiService.sendMessage(userMessage);
-      if (response.success && response.data.aiResponse) {
-        setMessages(prev => [...prev, { sender: 'ai', text: response.data.aiResponse, timestamp: new Date().toISOString() }]);
+      if (response.success && response.data) {
+        const { studentMessage: sm, aiResponse: ai } = response.data;
+        setMessages(prev => {
+          // Replace temp student message with confirmed one, then add AI reply
+          const withoutTemp = prev.filter(m => m.id !== tempId);
+          return [
+            ...withoutTemp,
+            { id: sm.id, sender: 'student', text: sm.text, timestamp: sm.timestamp },
+            { id: ai.id, sender: 'ai', text: ai.text, timestamp: ai.timestamp }
+          ];
+        });
       }
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to get response. Please try again.';
@@ -158,9 +175,9 @@ const AIChat = () => {
                 </div>
               )}
               {messages.map((msg, index) => (
-                <div key={index} className={`flex ${msg.sender === 'student' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
+                <div key={msg.id ?? index} className={`flex ${msg.sender === 'student' ? 'justify-end' : 'justify-start'} animate-fade-in`}>
                   <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-md ${msg.sender === 'student' ? 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white rounded-br-none' : 'bg-white text-gray-800 rounded-bl-none border border-gray-100'}`}>
-                    <p className="whitespace-pre-wrap break-words text-sm">{msg.text}</p>
+                    <p className="whitespace-pre-wrap break-words text-sm">{msg?.text}</p>
                     <p className={`text-xs mt-1 ${msg.sender === 'student' ? 'text-indigo-100' : 'text-gray-400'}`}>
                       {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>

@@ -54,22 +54,17 @@ const sendMessage = async (req, res) => {
       .sort({ lastActiveAt: -1 });
 
     if (!session) {
-      session = await ChatSession.create({
-        studentId: studentId,
-        createdAt: Date.now(),
-        lastActiveAt: Date.now()
-      });
+      session = await ChatSession.create({ studentId: studentId });
     } else {
       // Update last active time
       await session.updateActivity();
     }
 
-    // Store student message
+    // Store student message — let Mongoose set createdAt via default
     const studentMessage = await ChatMessage.create({
       sessionId: session._id,
       sender: 'student',
-      messageText: message,
-      createdAt: Date.now()
+      messageText: message
     });
 
     // Get recent chat history for context (last 5 messages)
@@ -81,15 +76,31 @@ const sendMessage = async (req, res) => {
     // Generate AI response
     const aiResponseText = await generateAIResponse(message, recentHistory);
 
-    // Store AI response
-    const aiMessage = await ChatMessage.create({
-      sessionId: session._id,
-      sender: 'ai',
-      messageText: aiResponseText,
-      createdAt: Date.now()
-    });
+    // Safety trim: ensure AI response doesn't exceed DB limit (5000 chars)
+    const safeAiText = aiResponseText.length > 5000
+      ? aiResponseText.substring(0, 5000)
+      : aiResponseText;
 
-    // Return response
+    if (aiResponseText.length > 5000) {
+      console.warn(`AI response trimmed from ${aiResponseText.length} to 5000 chars for session ${session._id}`);
+    }
+
+    // Store AI response — use a timestamp guaranteed to be after the student message
+    let aiMessage = null;
+    try {
+      aiMessage = await ChatMessage.create({
+        sessionId: session._id,
+        sender: 'ai',
+        messageText: safeAiText
+        // createdAt intentionally omitted — Mongoose default ensures it's after studentMessage
+      });
+      console.log(`AI message saved successfully (${safeAiText.length} chars)`);
+    } catch (dbError) {
+      console.error('Failed to save AI message to DB:', dbError.message);
+      // Continue — still return AI response to frontend
+    }
+
+    // Return response — use safeAiText so UI and DB are always in sync
     res.status(200).json({
       success: true,
       data: {
@@ -100,18 +111,18 @@ const sendMessage = async (req, res) => {
           timestamp: studentMessage.createdAt
         },
         aiResponse: {
-          id: aiMessage._id,
-          text: aiMessage.messageText,
-          timestamp: aiMessage.createdAt
+          id: aiMessage?._id || null,
+          text: safeAiText,
+          timestamp: aiMessage?.createdAt || new Date()
         }
       }
     });
 
   } catch (error) {
-    console.error('AI Chat Error:', error);
+    console.error('AI Chat Error:', error.message);
     res.status(500).json({
       success: false,
-      message: 'Failed to process your message. Please try again.'
+      message: error.message || 'Failed to process your message. Please try again.'
     });
   }
 };
