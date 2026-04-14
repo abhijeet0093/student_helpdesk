@@ -237,6 +237,11 @@ async function updateComplaintStatus(req, res) {
     }
     
     complaint.status = status;
+    // Clear escalation flag when resolving or rejecting
+    if (status === 'Resolved' || status === 'Rejected') {
+      complaint.isEscalated = false;
+      complaint.escalatedAt = null;
+    }
     if (adminRemarks) {
       complaint.adminRemarks = adminRemarks;
     }

@@ -333,7 +333,7 @@ const AdminComplaints = () => {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className="text-xs font-bold text-gray-400">{complaint.complaintId}</span>
-                        {complaint.isEscalated && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">⚠️ Escalated</span>}
+                        {complaint.isEscalated && complaint.status !== 'Resolved' && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">⚠️ Escalated</span>}
                       </div>
                       <h3 className="font-bold text-gray-900">{complaint.title}</h3>
                     </div>
@@ -426,7 +426,7 @@ const AdminComplaints = () => {
               <div className="flex gap-2 flex-wrap">
                 <span className="text-xs font-bold text-gray-400">{selectedComplaint.complaintId}</span>
                 <span className={`px-2 py-0.5 rounded-lg text-xs font-semibold border ${STATUS_COLORS[selectedComplaint.status] || ''}`}>{selectedComplaint.status}</span>
-                {selectedComplaint.isEscalated && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-bold">⚠️ Escalated</span>}
+                {selectedComplaint.isEscalated && selectedComplaint.status !== 'Resolved' && <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-bold">⚠️ Escalated</span>}
               </div>
               <h4 className="font-bold text-gray-900">{selectedComplaint.title}</h4>
               <p className="text-sm text-gray-600">{selectedComplaint.description}</p>

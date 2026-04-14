@@ -456,9 +456,28 @@ const UTResults = () => {
                                 </div>
                                 <p className="text-xs text-gray-400">{sub.code}</p>
                               </div>
-                              <div className="flex items-center gap-3">
-                                <span className="text-sm font-bold text-gray-900">{sub.marks} / 100</span>
-                                <span className={`text-sm font-bold ${pctColor(sub.marks)}`}>{sub.marks}%</span>
+                              <div className="flex flex-col items-end gap-1">
+                                {sub.theoryMarks != null && (
+                                  <span className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full font-semibold">
+                                    Theory: {sub.theoryMarks} / {sub.theoryMax}
+                                  </span>
+                                )}
+                                {sub.practicalMarks != null && (
+                                  <span className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full font-semibold">
+                                    Practical: {sub.practicalMarks} / {sub.practicalMax}
+                                  </span>
+                                )}
+                                {(() => {
+                                  const total = sub.totalMarks ?? sub.marks ?? 0;
+                                  const max   = sub.totalMax ?? 100;
+                                  const pct   = max > 0 ? (total / max) * 100 : 0;
+                                  return (
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-sm font-bold text-gray-900">{total} / {max}</span>
+                                      <span className={`text-sm font-bold ${pctColor(pct)}`}>{pct.toFixed(1)}%</span>
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </div>
                           );

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Loader from '../components/Loader';
+import NotificationDropdown from '../components/NotificationDropdown';
 
 const StaffDashboard = () => {
   const navigate = useNavigate();
@@ -201,12 +202,7 @@ const StaffDashboard = () => {
           
           <div className="flex items-center gap-4">
             {/* Notification Bell */}
-            <button className="relative p-3 text-gray-600 hover:bg-indigo-50 rounded-xl transition-all duration-300 hover:scale-110 group">
-              <svg className="w-6 h-6 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/50"></span>
-            </button>
+            <NotificationDropdown />
 
             {/* Profile */}
             <div className="flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl hover:shadow-md transition-all duration-300 cursor-pointer group">

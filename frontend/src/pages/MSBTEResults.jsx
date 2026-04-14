@@ -140,7 +140,17 @@ const MSBTEResults = () => {
   const compulsoryRows = semConfig
     ? semConfig.compulsory.map(def => {
         const found = semData.subjects.find(s => s.code === def.code);
-        return { ...def, marks: found ? found.marks : null, isElective: false };
+        return {
+          ...def,
+          isElective:     false,
+          marks:          found?.marks          ?? null,
+          theoryMarks:    found?.theoryMarks     ?? null,
+          practicalMarks: found?.practicalMarks  ?? null,
+          totalMarks:     found?.totalMarks      ?? null,
+          theoryMax:      found?.theoryMax       ?? null,
+          practicalMax:   found?.practicalMax    ?? null,
+          totalMax:       found?.totalMax        ?? null,
+        };
       })
     : [];
 
@@ -148,18 +158,29 @@ const MSBTEResults = () => {
     ? (() => {
         const found = semData.subjects.find(s => s.code === semData.elective.code);
         return found
-          ? { code: found.code, name: found.name, marks: found.marks, isElective: true }
+          ? {
+              code:           found.code,
+              name:           found.name,
+              isElective:     true,
+              marks:          found.marks          ?? null,
+              theoryMarks:    found.theoryMarks     ?? null,
+              practicalMarks: found.practicalMarks  ?? null,
+              totalMarks:     found.totalMarks      ?? null,
+              theoryMax:      found.theoryMax       ?? null,
+              practicalMax:   found.practicalMax    ?? null,
+              totalMax:       found.totalMax        ?? null,
+            }
           : null;
       })()
     : null;
 
   const allRows = electiveRow ? [...compulsoryRows, electiveRow] : compulsoryRows;
 
-  // Summary stats
-  const enteredRows  = allRows.filter(s => s.marks !== null);
-  const totalMarks   = enteredRows.reduce((acc, s) => acc + s.marks, 0);
-  const maxMarks     = enteredRows.length * 100;
-  const avgPct       = maxMarks > 0 ? (totalMarks / maxMarks) * 100 : 0;
+  // Summary stats — use actual totalMax per subject, not a fixed 100
+  const enteredRows = allRows.filter(s => (s.totalMarks ?? s.marks) !== null);
+  const totalMarks  = enteredRows.reduce((acc, s) => acc + (s.totalMarks ?? s.marks ?? 0), 0);
+  const maxMarks    = enteredRows.reduce((acc, s) => acc + (s.totalMax ?? 100), 0);
+  const avgPct      = maxMarks > 0 ? (totalMarks / maxMarks) * 100 : 0;
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -363,7 +384,13 @@ const MSBTEResults = () => {
 
                       <div className="space-y-3">
                         {allRows.map((sub) => {
-                          const g = sub.marks !== null ? gradeLabel(sub.marks) : null;
+                          // compute percentage correctly against actual totalMax
+                          const subTotal = sub.totalMarks ?? sub.marks;
+                          const subMax   = sub.totalMax ?? 100;
+                          const subPct   = subTotal !== null && subMax > 0
+                            ? (subTotal / subMax) * 100
+                            : null;
+                          const g = subPct !== null ? gradeLabel(subPct) : null;
                           return (
                             <div key={sub.code}
                               className={`rounded-xl p-4 transition-all duration-200 hover:shadow-md ${
@@ -385,11 +412,33 @@ const MSBTEResults = () => {
                                 </div>
 
                                 <div className="flex items-center gap-4 flex-shrink-0">
-                                  {sub.marks !== null ? (
+                                  {subTotal !== null ? (
                                     <>
+                                      {/* Theory */}
+                                      {sub.theoryMarks != null && (
+                                        <div className="text-center min-w-[80px]">
+                                          <p className="text-xs text-blue-600 mb-1 font-semibold">Theory</p>
+                                          <p className="text-sm font-bold text-gray-900">
+                                            {sub.theoryMarks} / {sub.theoryMax}
+                                          </p>
+                                        </div>
+                                      )}
+                                      {/* Practical */}
+                                      {sub.practicalMarks != null && (
+                                        <div className="text-center min-w-[80px]">
+                                          <p className="text-xs text-green-600 mb-1 font-semibold">Practical</p>
+                                          <p className="text-sm font-bold text-gray-900">
+                                            {sub.practicalMarks} / {sub.practicalMax}
+                                          </p>
+                                        </div>
+                                      )}
+                                      <div className="w-px h-10 bg-gray-200" />
+                                      {/* Total */}
                                       <div className="text-center min-w-[80px]">
-                                        <p className="text-xs text-gray-500 mb-1 font-medium">Marks</p>
-                                        <p className="text-lg font-bold text-gray-900">{sub.marks} / 100</p>
+                                        <p className="text-xs text-gray-500 mb-1 font-medium">Total</p>
+                                        <p className="text-lg font-bold text-indigo-700">
+                                          {subTotal} / {subMax}
+                                        </p>
                                       </div>
                                       <div className="w-px h-10 bg-gray-200" />
                                       <div className="text-center min-w-[90px]">
@@ -407,8 +456,8 @@ const MSBTEResults = () => {
 
                               <div className="w-full bg-gray-200 rounded-full h-2">
                                 <div
-                                  className={`bg-gradient-to-r ${sub.marks !== null ? barColor(sub.marks) : 'from-gray-300 to-gray-300'} h-2 rounded-full transition-all duration-500`}
-                                  style={{ width: sub.marks !== null ? `${Math.min(sub.marks, 100)}%` : '0%' }}
+                                  className={`bg-gradient-to-r ${subPct !== null ? barColor(subPct) : 'from-gray-300 to-gray-300'} h-2 rounded-full transition-all duration-500`}
+                                  style={{ width: subPct !== null ? `${Math.min(subPct, 100)}%` : '0%' }}
                                 />
                               </div>
                             </div>

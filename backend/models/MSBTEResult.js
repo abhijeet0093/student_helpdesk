@@ -8,9 +8,18 @@ const mongoose = require('mongoose');
  */
 
 const subjectMarkSchema = new mongoose.Schema({
-  code:  { type: String, required: true, uppercase: true, trim: true },
-  name:  { type: String, required: true, trim: true },
-  marks: { type: Number, required: true, min: 0, max: 100 },
+  code:         { type: String, required: true, uppercase: true, trim: true },
+  name:         { type: String, required: true, trim: true },
+  // Legacy single-marks field kept for backward compatibility
+  marks:        { type: Number, default: null, min: 0 },
+  // New: theory + practical breakdown
+  theoryMarks:  { type: Number, default: null, min: 0 },
+  practicalMarks: { type: Number, default: null, min: 0 },
+  totalMarks:   { type: Number, default: null, min: 0 },
+  // Max marks from marking scheme (stored for display)
+  theoryMax:    { type: Number, default: null },
+  practicalMax: { type: Number, default: null },
+  totalMax:     { type: Number, default: null },
 }, { _id: false });
 
 const msbteResultSchema = new mongoose.Schema({

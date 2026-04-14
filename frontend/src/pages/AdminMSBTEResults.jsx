@@ -213,15 +213,31 @@ const AdminMSBTEResults = () => {
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Subject-wise Marks</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-4">
                       {r.subjects?.map(s => (
-                        <div key={s.code} className="flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
-                          <div>
-                            <p className="text-sm font-semibold text-gray-800">{s.name}</p>
-                            <p className="text-xs text-gray-400">{s.code}</p>
+                        <div key={s.code} className="flex flex-col bg-white rounded-xl px-4 py-3 border border-gray-100 shadow-sm">
+                          <div className="flex items-center justify-between mb-1">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">{s.name}</p>
+                              <p className="text-xs text-gray-400">{s.code}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-lg font-bold text-indigo-600">{s.totalMarks ?? s.marks}</p>
+                              <p className="text-xs text-gray-400">/ {s.totalMax ?? 100}</p>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-lg font-bold text-indigo-600">{s.marks}</p>
-                            <p className="text-xs text-gray-400">/ 100</p>
-                          </div>
+                          {(s.theoryMarks != null || s.practicalMarks != null) && (
+                            <div className="flex gap-2 mt-1 flex-wrap">
+                              {s.theoryMarks != null && (
+                                <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                                  Theory: {s.theoryMarks}/{s.theoryMax}
+                                </span>
+                              )}
+                              {s.practicalMarks != null && (
+                                <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">
+                                  Practical: {s.practicalMarks}/{s.practicalMax}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

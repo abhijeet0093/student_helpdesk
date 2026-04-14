@@ -2,6 +2,7 @@ const MSBTEResult = require('../models/MSBTEResult');
 const UTResult    = require('../models/UTResult');
 const Student     = require('../models/Student');
 const { getMSBTESubjectsForSemester, getAllSubjectsForSemester } = require('../utils/msbteSubjectsConfig');
+const { getScheme, validateSubjectMarks } = require('../utils/msbteMarkingScheme');
 
 // ─── STAFF: Submit / update MSBTE Result for a semester ──────────────────────
 const submitMSBTEResult = async (req, res) => {
@@ -38,15 +39,17 @@ const submitMSBTEResult = async (req, res) => {
       }
     }
 
-    // Validate each subject marks
+    // Validate each subject marks against marking scheme
     for (const s of subjects) {
       if (!s.code || !s.name) {
         return res.status(400).json({ success: false, message: 'Each subject must have a code and name' });
       }
-      const m = parseFloat(s.marks);
-      if (isNaN(m) || m < 0 || m > 100) {
-        return res.status(400).json({ success: false, message: `Marks for "${s.name}" must be between 0 and 100` });
+      const scheme = getScheme(s.code.toUpperCase());
+      if (!scheme) {
+        return res.status(400).json({ success: false, message: `Unknown subject code: ${s.code}` });
       }
+      const err = validateSubjectMarks(s.code, s.theoryMarks, s.practicalMarks);
+      if (err) return res.status(400).json({ success: false, message: err });
     }
 
     // No duplicate subject codes
@@ -61,11 +64,24 @@ const submitMSBTEResult = async (req, res) => {
       return res.status(404).json({ success: false, message: `Student not found: ${rollNo.toUpperCase()}` });
     }
 
-    const cleanSubjects = subjects.map(s => ({
-      code:  s.code.toUpperCase(),
-      name:  s.name.trim(),
-      marks: parseFloat(s.marks),
-    }));
+    const cleanSubjects = subjects.map(s => {
+      const scheme = getScheme(s.code.toUpperCase());
+      const theory    = scheme.theoryMax    !== null ? parseFloat(s.theoryMarks)    : null;
+      const practical = scheme.practicalMax !== null ? parseFloat(s.practicalMarks) : null;
+      const total     = (theory || 0) + (practical || 0);
+      return {
+        code:          s.code.toUpperCase(),
+        name:          s.name.trim(),
+        theoryMarks:   theory,
+        practicalMarks: practical,
+        totalMarks:    total,
+        theoryMax:     scheme.theoryMax,
+        practicalMax:  scheme.practicalMax,
+        totalMax:      scheme.totalMax,
+        // keep legacy marks field = totalMarks for backward compat
+        marks:         total,
+      };
+    });
 
     const cleanElective = hasElectives && elective
       ? { code: elective.code.toUpperCase(), name: elective.name.trim() }
@@ -256,8 +272,16 @@ const getMyMSBTEResults = async (req, res) => {
       // Normalize subjects — handle both old schema (subjectCode/subjectName/marksObtained)
       // and new schema (code/name/marks) so old DB documents display correctly
       const subjects = (r.subjects || []).map(s => ({
-        code:  s.code  || s.subjectCode  || '',
-        name:  s.name  || s.subjectName  || '',
+        code:          s.code  || s.subjectCode  || '',
+        name:          s.name  || s.subjectName  || '',
+        // new fields
+        theoryMarks:   s.theoryMarks   != null ? s.theoryMarks   : null,
+        practicalMarks: s.practicalMarks != null ? s.practicalMarks : null,
+        totalMarks:    s.totalMarks    != null ? s.totalMarks    : null,
+        theoryMax:     s.theoryMax     != null ? s.theoryMax     : null,
+        practicalMax:  s.practicalMax  != null ? s.practicalMax  : null,
+        totalMax:      s.totalMax      != null ? s.totalMax      : null,
+        // legacy fallback
         marks: s.marks != null ? s.marks : (s.marksObtained != null ? s.marksObtained : null),
       }));
 

@@ -324,7 +324,7 @@ const MyComplaints = () => {
                       <div className="flex items-center gap-3 flex-wrap">
                         <h3 className="text-lg font-bold text-gray-900">{complaint.complaintId}</h3>
                         <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-semibold">{complaint.category}</span>
-                        {complaint.isEscalated && (
+                        {complaint.isEscalated && complaint.status !== 'Resolved' && (
                           <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-bold flex items-center gap-1">
                             ⚠️ Escalated
                           </span>

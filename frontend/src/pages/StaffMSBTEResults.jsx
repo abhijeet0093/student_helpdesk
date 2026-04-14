@@ -3,12 +3,61 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
+// ── Marking scheme (mirrors backend msbteMarkingScheme.js) ───────────────────
+const MARKING_SCHEME = {
+  '311302': { theoryMax: 100, practicalMax: null },
+  '311303': { theoryMax: 100, practicalMax: 50   },
+  '311305': { theoryMax: 100, practicalMax: 50   },
+  '311001': { theoryMax: null, practicalMax: 50  },
+  '311002': { theoryMax: null, practicalMax: 50  },
+  '311003': { theoryMax: null, practicalMax: 50  },
+  '311008': { theoryMax: 100, practicalMax: 50   },
+  '312301': { theoryMax: 100, practicalMax: null },
+  '312302': { theoryMax: 100, practicalMax: 50   },
+  '312303': { theoryMax: 100, practicalMax: 50   },
+  '312001': { theoryMax: null, practicalMax: 50  },
+  '312002': { theoryMax: null, practicalMax: 50  },
+  '312003': { theoryMax: null, practicalMax: 50  },
+  '312004': { theoryMax: null, practicalMax: 50  },
+  '313301': { theoryMax: 100, practicalMax: 50   },
+  '313302': { theoryMax: 100, practicalMax: 50   },
+  '313303': { theoryMax: 100, practicalMax: 50   },
+  '313304': { theoryMax: 100, practicalMax: 50   },
+  '313001': { theoryMax: null, practicalMax: 50  },
+  '313002': { theoryMax: 100, practicalMax: null },
+  '314317': { theoryMax: 100, practicalMax: 50   },
+  '314318': { theoryMax: 100, practicalMax: 50   },
+  '314321': { theoryMax: 100, practicalMax: 50   },
+  '314301': { theoryMax: 100, practicalMax: null },
+  '314004': { theoryMax: null, practicalMax: 50  },
+  '314005': { theoryMax: null, practicalMax: 50  },
+  '315319': { theoryMax: 100, practicalMax: 50   },
+  '315323': { theoryMax: 100, practicalMax: 50   },
+  '315002': { theoryMax: 100, practicalMax: null },
+  '315003': { theoryMax: null, practicalMax: 50  },
+  '315004': { theoryMax: null, practicalMax: 50  },
+  '315321': { theoryMax: 100, practicalMax: 50   },
+  '315325': { theoryMax: 100, practicalMax: 50   },
+  '315326': { theoryMax: 100, practicalMax: 50   },
+  '315301': { theoryMax: 100, practicalMax: null },
+  '316314': { theoryMax: 100, practicalMax: 50   },
+  '316313': { theoryMax: 100, practicalMax: null },
+  '316005': { theoryMax: null, practicalMax: 50  },
+  '316006': { theoryMax: null, practicalMax: 50  },
+  '316004': { theoryMax: null, practicalMax: 50  },
+  '316315': { theoryMax: 100, practicalMax: 50   },
+  '316316': { theoryMax: 100, practicalMax: 50   },
+  '316317': { theoryMax: 100, practicalMax: 50   },
+};
+
+const getScheme = (code) => MARKING_SCHEME[code] || { theoryMax: 100, practicalMax: null };
+const totalMax  = (code) => { const s = getScheme(code); return (s.theoryMax || 0) + (s.practicalMax || 0); };
+
 const STATUS_STYLE = {
   pending:  'bg-yellow-100 text-yellow-700',
   approved: 'bg-green-100 text-green-700',
   rejected: 'bg-red-100 text-red-700',
 };
-
 const GRADE_STYLE = {
   Distinction:   'bg-purple-100 text-purple-700',
   'First Class': 'bg-blue-100 text-blue-700',
@@ -27,68 +76,76 @@ const navItems = [
 ];
 
 const StaffMSBTEResults = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const navigate  = useNavigate();
+  const location  = useLocation();
   const { user, logout } = useAuth();
 
-  const [form, setForm]                     = useState(INITIAL_FORM);
-  const [compulsory, setCompulsory]         = useState([]);   // [{code,name}]
-  const [electives, setElectives]           = useState([]);   // [{code,name}]
-  const [electiveLabel, setElectiveLabel]   = useState(null); // 'Elective I' | 'Elective II' | null
-  const [selectedElective, setSelectedElective] = useState(null); // {code,name} | null
-  const [marks, setMarks]                   = useState({});   // { code: value }
+  const [form, setForm]                       = useState(INITIAL_FORM);
+  const [compulsory, setCompulsory]           = useState([]);
+  const [electives, setElectives]             = useState([]);
+  const [electiveLabel, setElectiveLabel]     = useState(null);
+  const [selectedElective, setSelectedElective] = useState(null);
+  // marks[code] = { theory: '', practical: '' }
+  const [marks, setMarks]                     = useState({});
   const [subjectsLoading, setSubjectsLoading] = useState(false);
-  const [submitting, setSubmitting]         = useState(false);
-  const [msg, setMsg]                       = useState({ text: '', type: '' });
-  const [submitted, setSubmitted]           = useState([]);
-  const [tableLoading, setTableLoading]     = useState(false);
-  const [expandedRow, setExpandedRow]       = useState(null);
+  const [submitting, setSubmitting]           = useState(false);
+  const [msg, setMsg]                         = useState({ text: '', type: '' });
+  const [submitted, setSubmitted]             = useState([]);
+  const [tableLoading, setTableLoading]       = useState(false);
+  const [expandedRow, setExpandedRow]         = useState(null);
 
-  // ── Load subjects when semester changes ──────────────────────────────────
+  // ── helpers ──────────────────────────────────────────────────────────────
+  const initMarks = (subjects) => {
+    const m = {};
+    subjects.forEach(s => { m[s.code] = { theory: '', practical: '' }; });
+    return m;
+  };
+
+  const getTotal = (code) => {
+    const m = marks[code];
+    if (!m) return 0;
+    return (parseFloat(m.theory) || 0) + (parseFloat(m.practical) || 0);
+  };
+
+  const setMark = (code, field, raw) => {
+    const scheme = getScheme(code);
+    const max    = field === 'theory' ? scheme.theoryMax : scheme.practicalMax;
+    let val = raw;
+    if (raw !== '' && raw !== '-') {
+      const n = parseFloat(raw);
+      if (isNaN(n) || n < 0) val = '0';
+      else if (max !== null && n > max) val = String(max);
+    }
+    setMarks(prev => ({ ...prev, [code]: { ...prev[code], [field]: val } }));
+  };
+
+  // ── load subjects ─────────────────────────────────────────────────────────
   const loadSubjects = useCallback(async (sem) => {
     try {
       setSubjectsLoading(true);
-      setCompulsory([]);
-      setElectives([]);
-      setElectiveLabel(null);
-      setSelectedElective(null);
-      setMarks({});
+      setCompulsory([]); setElectives([]); setElectiveLabel(null);
+      setSelectedElective(null); setMarks({});
       const res = await api.get(`/staff/msbte-subjects/${sem}`);
       if (res.data.success) {
         const { compulsory: comp, electives: elec, electiveLabel: label } = res.data.data;
         setCompulsory(comp || []);
         setElectives(elec || []);
         setElectiveLabel(label || null);
-        // Pre-fill marks for compulsory only
-        const init = {};
-        (comp || []).forEach(s => { init[s.code] = ''; });
-        setMarks(init);
+        setMarks(initMarks(comp || []));
       }
-    } catch (_) {
-      setCompulsory([]);
-    } finally {
-      setSubjectsLoading(false);
-    }
+    } catch (_) { setCompulsory([]); }
+    finally { setSubjectsLoading(false); }
   }, []);
 
-  useEffect(() => {
-    loadSubjects(form.semester);
-    fetchSubmitted();
-  }, []); // eslint-disable-line
+  useEffect(() => { loadSubjects(form.semester); fetchSubmitted(); }, []); // eslint-disable-line
+  useEffect(() => { loadSubjects(form.semester); }, [form.semester, loadSubjects]);
 
-  useEffect(() => {
-    loadSubjects(form.semester);
-  }, [form.semester, loadSubjects]);
-
-  // When elective selection changes, add/remove its marks slot
   const handleElectiveSelect = (sub) => {
     setSelectedElective(sub);
     setMarks(prev => {
       const next = { ...prev };
-      // Remove old elective marks
       electives.forEach(e => { delete next[e.code]; });
-      // Add new elective slot
-      next[sub.code] = '';
+      next[sub.code] = { theory: '', practical: '' };
       return next;
     });
   };
@@ -102,52 +159,69 @@ const StaffMSBTEResults = () => {
     finally { setTableLoading(false); }
   };
 
-  // ── Validation ───────────────────────────────────────────────────────────
+  // ── validation ────────────────────────────────────────────────────────────
   const validate = () => {
     if (!form.rollNo.trim()) return 'Roll number is required';
     if (!form.semester)      return 'Semester is required';
-    if (compulsory.length === 0) return 'No subjects loaded for this semester';
+    if (compulsory.length === 0) return 'No subjects loaded';
 
     for (const s of compulsory) {
-      const v = marks[s.code];
-      if (v === '' || v == null) return `Marks for "${s.name}" are required`;
-      const n = parseFloat(v);
-      if (isNaN(n) || n < 0 || n > 100) return `Marks for "${s.name}" must be 0–100`;
+      const scheme = getScheme(s.code);
+      const m = marks[s.code] || {};
+      if (scheme.theoryMax !== null) {
+        if (m.theory === '' || m.theory == null) return `Theory marks required for "${s.name}"`;
+        const n = parseFloat(m.theory);
+        if (isNaN(n) || n < 0 || n > scheme.theoryMax)
+          return `Theory marks for "${s.name}" must be 0–${scheme.theoryMax}`;
+      }
+      if (scheme.practicalMax !== null) {
+        if (m.practical === '' || m.practical == null) return `Practical marks required for "${s.name}"`;
+        const n = parseFloat(m.practical);
+        if (isNaN(n) || n < 0 || n > scheme.practicalMax)
+          return `Practical marks for "${s.name}" must be 0–${scheme.practicalMax}`;
+      }
     }
 
     if (electives.length > 0) {
-      if (!selectedElective) return `Please select one ${electiveLabel || 'elective'} subject`;
-      const v = marks[selectedElective.code];
-      if (v === '' || v == null) return `Marks for "${selectedElective.name}" are required`;
-      const n = parseFloat(v);
-      if (isNaN(n) || n < 0 || n > 100) return `Marks for "${selectedElective.name}" must be 0–100`;
+      if (!selectedElective) return `Please select one ${electiveLabel || 'elective'}`;
+      const scheme = getScheme(selectedElective.code);
+      const m = marks[selectedElective.code] || {};
+      if (scheme.theoryMax !== null && (m.theory === '' || m.theory == null))
+        return `Theory marks required for "${selectedElective.name}"`;
+      if (scheme.practicalMax !== null && (m.practical === '' || m.practical == null))
+        return `Practical marks required for "${selectedElective.name}"`;
     }
 
     if (form.finalPercentage === '') return 'Final semester percentage is required';
     const pct = parseFloat(form.finalPercentage);
     if (isNaN(pct) || pct < 0 || pct > 100) return 'Final percentage must be 0–100';
-
     return null;
   };
 
-  // ── Submit ───────────────────────────────────────────────────────────────
+  // ── submit ────────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     const err = validate();
     if (err) { setMsg({ text: err, type: 'error' }); return; }
 
-    // Build subjects array: compulsory + selected elective
+    const buildSubject = (s) => {
+      const scheme = getScheme(s.code);
+      const m = marks[s.code] || {};
+      return {
+        code:          s.code,
+        name:          s.name,
+        theoryMarks:   scheme.theoryMax    !== null ? parseFloat(m.theory)    : null,
+        practicalMarks: scheme.practicalMax !== null ? parseFloat(m.practical) : null,
+      };
+    };
+
     const subjectsPayload = [
-      ...compulsory.map(s => ({ code: s.code, name: s.name, marks: parseFloat(marks[s.code]) })),
-      ...(selectedElective
-        ? [{ code: selectedElective.code, name: selectedElective.name, marks: parseFloat(marks[selectedElective.code]) }]
-        : []),
+      ...compulsory.map(buildSubject),
+      ...(selectedElective ? [buildSubject(selectedElective)] : []),
     ];
 
     try {
-      setSubmitting(true);
-      setMsg({ text: '', type: '' });
-
+      setSubmitting(true); setMsg({ text: '', type: '' });
       await api.post('/staff/add-msbte-result', {
         rollNo:          form.rollNo.trim().toUpperCase(),
         semester:        parseInt(form.semester),
@@ -156,72 +230,100 @@ const StaffMSBTEResults = () => {
         finalPercentage: parseFloat(form.finalPercentage),
         resultType:      'MSBTE',
       });
-
-      setMsg({ text: 'MSBTE result submitted successfully. Awaiting admin approval.', type: 'success' });
+      setMsg({ text: 'MSBTE result submitted. Awaiting admin approval.', type: 'success' });
       setForm(INITIAL_FORM);
       setSelectedElective(null);
-      const reset = {};
-      compulsory.forEach(s => { reset[s.code] = ''; });
-      setMarks(reset);
+      setMarks(initMarks(compulsory));
       fetchSubmitted();
     } catch (e) {
       setMsg({ text: e.response?.data?.message || 'Failed to submit result', type: 'error' });
-    } finally {
-      setSubmitting(false);
-    }
+    } finally { setSubmitting(false); }
   };
 
-  // ── Render mark-input row (plain function, NOT a component — avoids remount on each keystroke) ──
-  const renderMarkRow = (sub, isElective = false) => (
-    <div
-      key={sub.code}
-      className={`flex items-center gap-4 px-5 py-3 border-b border-gray-100 last:border-0 ${isElective ? 'bg-amber-50/60' : ''}`}
-    >
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate">{sub.name}</p>
-        <div className="flex items-center gap-2 mt-0.5">
-          <p className="text-xs text-gray-400">{sub.code}</p>
-          {isElective && (
-            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
-              {electiveLabel}
-            </span>
+  // ── render subject mark row (theory + practical inputs) ──────────────────
+  const renderMarkRow = (sub, isElective = false) => {
+    const scheme = getScheme(sub.code);
+    const m      = marks[sub.code] || { theory: '', practical: '' };
+    const tot    = getTotal(sub.code);
+    const tMax   = totalMax(sub.code);
+
+    return (
+      <div key={sub.code}
+        className={`px-5 py-4 border-b border-gray-100 last:border-0 ${isElective ? 'bg-amber-50/60' : ''}`}>
+        {/* Subject header */}
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-sm font-bold text-gray-900">{sub.name}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-xs text-gray-400">{sub.code}</span>
+              {isElective && (
+                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                  {electiveLabel}
+                </span>
+              )}
+              <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                Total Max: {tMax}
+              </span>
+            </div>
+          </div>
+          {/* Live total */}
+          <div className="text-right">
+            <p className="text-xs text-gray-400">Total</p>
+            <p className={`text-lg font-bold ${tot > 0 ? 'text-indigo-600' : 'text-gray-300'}`}>
+              {tot} / {tMax}
+            </p>
+          </div>
+        </div>
+
+        {/* Input fields */}
+        <div className="flex flex-wrap gap-4">
+          {/* Theory */}
+          {scheme.theoryMax !== null && (
+            <div className="flex-1 min-w-[140px]">
+              <label className="block text-xs font-semibold text-blue-700 mb-1">
+                Theory <span className="text-gray-400 font-normal">(Max {scheme.theoryMax})</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={m.theory}
+                  onChange={e => setMark(sub.code, 'theory', e.target.value)}
+                  min="0" max={scheme.theoryMax} step="1"
+                  placeholder={`0–${scheme.theoryMax}`}
+                  className="w-full rounded-lg border-2 border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent px-3 py-2 text-sm text-center transition-all"
+                />
+                <span className="text-xs text-gray-400 whitespace-nowrap">/ {scheme.theoryMax}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Practical */}
+          {scheme.practicalMax !== null && (
+            <div className="flex-1 min-w-[140px]">
+              <label className="block text-xs font-semibold text-green-700 mb-1">
+                Practical <span className="text-gray-400 font-normal">(Max {scheme.practicalMax})</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={m.practical}
+                  onChange={e => setMark(sub.code, 'practical', e.target.value)}
+                  min="0" max={scheme.practicalMax} step="1"
+                  placeholder={`0–${scheme.practicalMax}`}
+                  className="w-full rounded-lg border-2 border-green-200 focus:ring-2 focus:ring-green-400 focus:border-transparent px-3 py-2 text-sm text-center transition-all"
+                />
+                <span className="text-xs text-gray-400 whitespace-nowrap">/ {scheme.practicalMax}</span>
+              </div>
+            </div>
           )}
         </div>
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <input
-          type="number"
-          value={marks[sub.code] ?? ''}
-          onChange={e => {
-            const raw = e.target.value;
-            if (raw === '' || raw === '-') {
-              setMarks(prev => ({ ...prev, [sub.code]: '' }));
-              return;
-            }
-            const n = parseFloat(raw);
-            if (isNaN(n) || n < 0) {
-              setMarks(prev => ({ ...prev, [sub.code]: '0' }));
-            } else if (n > 100) {
-              setMarks(prev => ({ ...prev, [sub.code]: '100' }));
-            } else {
-              setMarks(prev => ({ ...prev, [sub.code]: raw }));
-            }
-          }}
-          min="0"
-          max="100"
-          step="1"
-          placeholder="0–100"
-          className="w-24 rounded-lg border-2 border-gray-200 focus:ring-2 focus:ring-purple-400 focus:border-transparent px-3 py-2 text-sm text-center transition-all"
-        />
-        <span className="text-xs text-gray-400 w-8">/ 100</span>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-
-      {/* ── Sidebar ── */}
+      {/* Sidebar */}
       <aside className="w-64 bg-slate-900 text-white flex flex-col shadow-2xl flex-shrink-0">
         <div className="p-6 border-b border-slate-700">
           <div className="flex items-center gap-3">
@@ -236,7 +338,7 @@ const StaffMSBTEResults = () => {
         <nav className="flex-1 p-4 space-y-2">
           {navItems.map(item => (
             <button key={item.path} onClick={() => navigate(item.path)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 font-medium ${
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
                 location.pathname === item.path
                   ? 'bg-indigo-600 text-white shadow-lg'
                   : 'text-gray-300 hover:bg-slate-800 hover:text-white'
@@ -247,19 +349,18 @@ const StaffMSBTEResults = () => {
         </nav>
         <div className="p-4 border-t border-slate-700">
           <button onClick={() => { logout(); navigate('/login'); }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-300 hover:bg-red-900 hover:text-white transition-all">
-            <span className="font-medium">Logout</span>
+            className="w-full px-4 py-3 rounded-xl text-red-300 hover:bg-red-900 hover:text-white transition-all font-medium">
+            Logout
           </button>
         </div>
       </aside>
 
-      {/* ── Main ── */}
+      {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
-
         <header className="bg-white shadow-md p-4 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">MSBTE Result Entry</h1>
-            <p className="text-sm text-gray-500">Semester-wise marks with elective selection — hidden until admin approves</p>
+            <p className="text-sm text-gray-500">Theory + Practical marks per subject — official MSBTE scheme</p>
           </div>
           <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-xl">
             <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold">
@@ -273,8 +374,7 @@ const StaffMSBTEResults = () => {
         </header>
 
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
-
-          {/* ── Entry Form ── */}
+          {/* Entry Form */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
             <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
               <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-lg flex items-center justify-center">
@@ -284,6 +384,19 @@ const StaffMSBTEResults = () => {
               </div>
               Enter MSBTE Results
             </h2>
+
+            {/* Legend */}
+            <div className="flex flex-wrap gap-3 mb-5 p-3 bg-gray-50 rounded-xl">
+              <div className="flex items-center gap-1.5 text-xs text-blue-700">
+                <div className="w-3 h-3 rounded bg-blue-200" /> Theory marks
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-green-700">
+                <div className="w-3 h-3 rounded bg-green-200" /> Practical marks
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                Max shown beside each input — system prevents exceeding it
+              </div>
+            </div>
 
             {msg.text && (
               <div className={`mb-5 p-4 rounded-xl text-sm font-medium ${
@@ -296,33 +409,25 @@ const StaffMSBTEResults = () => {
             )}
 
             <form onSubmit={handleSubmit} noValidate>
-
               {/* Roll No + Semester */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Roll Number <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={form.rollNo}
+                  <input type="text" value={form.rollNo}
                     onChange={e => setForm({ ...form, rollNo: e.target.value })}
                     placeholder="e.g. CS2021001"
-                    className="w-full rounded-xl border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-transparent px-4 py-3 transition-all"
-                  />
+                    className="w-full rounded-xl border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-transparent px-4 py-3 transition-all" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Semester <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    value={form.semester}
+                  <select value={form.semester}
                     onChange={e => setForm({ ...form, semester: e.target.value })}
-                    className="w-full rounded-xl border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-transparent px-4 py-3 transition-all"
-                  >
-                    {[1,2,3,4,5,6].map(s => (
-                      <option key={s} value={s}>Semester {s}</option>
-                    ))}
+                    className="w-full rounded-xl border-2 border-gray-200 focus:ring-2 focus:ring-purple-500 focus:border-transparent px-4 py-3 transition-all">
+                    {[1,2,3,4,5,6].map(s => <option key={s} value={s}>Semester {s}</option>)}
                   </select>
                 </div>
               </div>
@@ -333,18 +438,16 @@ const StaffMSBTEResults = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                   </svg>
-                  Loading subjects for Semester {form.semester}...
+                  Loading subjects...
                 </div>
               )}
 
-              {/* ── Compulsory Subjects ── */}
+              {/* Compulsory Subjects */}
               {!subjectsLoading && compulsory.length > 0 && (
                 <div className="mb-6">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-2 h-5 bg-indigo-500 rounded-full" />
-                    <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
-                      Compulsory Subjects
-                    </h3>
+                    <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Compulsory Subjects</h3>
                     <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-medium">
                       {compulsory.length} subjects
                     </span>
@@ -355,7 +458,7 @@ const StaffMSBTEResults = () => {
                 </div>
               )}
 
-              {/* ── Elective Section ── */}
+              {/* Elective Section */}
               {!subjectsLoading && electives.length > 0 && (
                 <div className="mb-6">
                   <div className="flex items-center gap-2 mb-3">
@@ -363,44 +466,29 @@ const StaffMSBTEResults = () => {
                     <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
                       {electiveLabel || 'Elective'} — Select ONE
                     </h3>
-                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-                      Choose 1 of {electives.length}
-                    </span>
                   </div>
-
-                  {/* Radio selection */}
                   <div className="bg-amber-50 rounded-xl border border-amber-200 overflow-hidden mb-3">
                     {electives.map((sub, idx) => (
-                      <label
-                        key={sub.code}
+                      <label key={sub.code}
                         className={`flex items-center gap-4 px-5 py-3 cursor-pointer transition-colors ${
                           selectedElective?.code === sub.code
                             ? 'bg-amber-100 border-l-4 border-amber-500'
                             : 'hover:bg-amber-100/50'
-                        } ${idx !== electives.length - 1 ? 'border-b border-amber-100' : ''}`}
-                      >
-                        <input
-                          type="radio"
-                          name="elective"
-                          value={sub.code}
+                        } ${idx !== electives.length - 1 ? 'border-b border-amber-100' : ''}`}>
+                        <input type="radio" name="elective" value={sub.code}
                           checked={selectedElective?.code === sub.code}
                           onChange={() => handleElectiveSelect(sub)}
-                          className="w-4 h-4 text-amber-600 focus:ring-amber-500"
-                        />
+                          className="w-4 h-4 text-amber-600 focus:ring-amber-500" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold text-gray-900">{sub.name}</p>
-                          <p className="text-xs text-gray-400">{sub.code}</p>
+                          <p className="text-xs text-gray-400">{sub.code} • Total Max: {totalMax(sub.code)}</p>
                         </div>
                         {selectedElective?.code === sub.code && (
-                          <span className="text-xs bg-amber-500 text-white px-2 py-0.5 rounded-full font-semibold flex-shrink-0">
-                            Selected
-                          </span>
+                          <span className="text-xs bg-amber-500 text-white px-2 py-0.5 rounded-full font-semibold">Selected</span>
                         )}
                       </label>
                     ))}
                   </div>
-
-                  {/* Marks input for selected elective */}
                   {selectedElective && (
                     <div className="bg-amber-50 rounded-xl border border-amber-200 overflow-hidden">
                       <div className="px-4 py-2 bg-amber-100 border-b border-amber-200">
@@ -414,59 +502,37 @@ const StaffMSBTEResults = () => {
                 </div>
               )}
 
-              {/* ── Final Percentage ── */}
+              {/* Final Percentage */}
               {!subjectsLoading && compulsory.length > 0 && (
                 <div className="mb-6">
                   <label className="block text-sm font-bold text-gray-700 mb-2">
                     Final Semester Percentage (%) <span className="text-red-500">*</span>
                   </label>
                   <div className="flex items-center gap-3 max-w-xs">
-                    <input
-                      type="number"
-                      value={form.finalPercentage}
+                    <input type="number" value={form.finalPercentage}
                       onChange={e => {
                         const raw = e.target.value;
                         if (raw === '') { setForm({ ...form, finalPercentage: '' }); return; }
                         const n = parseFloat(raw);
-                        if (isNaN(n) || n < 0) {
-                          setForm({ ...form, finalPercentage: '0' });
-                        } else if (n > 100) {
-                          setForm({ ...form, finalPercentage: '100' });
-                        } else {
-                          setForm({ ...form, finalPercentage: raw });
-                        }
+                        setForm({ ...form, finalPercentage: isNaN(n) || n < 0 ? '0' : n > 100 ? '100' : raw });
                       }}
-                      min="0" max="100" step="0.01"
-                      placeholder="e.g. 72.50"
-                      className="flex-1 rounded-xl border-2 border-purple-200 focus:ring-2 focus:ring-purple-500 focus:border-transparent px-4 py-3 text-lg font-bold text-purple-700 transition-all"
-                    />
+                      min="0" max="100" step="0.01" placeholder="e.g. 72.50"
+                      className="flex-1 rounded-xl border-2 border-purple-200 focus:ring-2 focus:ring-purple-500 focus:border-transparent px-4 py-3 text-lg font-bold text-purple-700 transition-all" />
                     <span className="text-2xl font-bold text-gray-400">%</span>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">Enter the official MSBTE final semester percentage</p>
+                  <p className="text-xs text-gray-400 mt-1">Official MSBTE final semester percentage</p>
                 </div>
               )}
 
-              <input type="hidden" value="MSBTE" readOnly />
-
-              <button
-                type="submit"
+              <button type="submit"
                 disabled={submitting || subjectsLoading || compulsory.length === 0}
-                className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-8 py-3 rounded-xl font-semibold shadow-md hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-              >
-                {submitting ? (
-                  <span className="flex items-center gap-2">
-                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                    </svg>
-                    Submitting...
-                  </span>
-                ) : 'Submit MSBTE Result'}
+                className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-8 py-3 rounded-xl font-semibold shadow-md hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100">
+                {submitting ? 'Submitting...' : 'Submit MSBTE Result'}
               </button>
             </form>
           </div>
 
-          {/* ── Submitted Results Table ── */}
+          {/* Submitted Results Table */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold text-gray-900">My Submitted MSBTE Results</h2>
@@ -489,10 +555,8 @@ const StaffMSBTEResults = () => {
               <div className="space-y-3">
                 {submitted.map(r => (
                   <div key={r._id} className="border border-gray-200 rounded-xl overflow-hidden">
-                    <div
-                      className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors"
-                      onClick={() => setExpandedRow(expandedRow === r._id ? null : r._id)}
-                    >
+                    <div className="flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                      onClick={() => setExpandedRow(expandedRow === r._id ? null : r._id)}>
                       <div className="flex items-center gap-4">
                         <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-sm">
                           S{r.semester}
@@ -515,7 +579,8 @@ const StaffMSBTEResults = () => {
                         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${STATUS_STYLE[r.status] || ''}`}>
                           {r.status}
                         </span>
-                        <svg className={`w-4 h-4 text-gray-400 transition-transform ${expandedRow === r._id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className={`w-4 h-4 text-gray-400 transition-transform ${expandedRow === r._id ? 'rotate-180' : ''}`}
+                          fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </div>
@@ -523,38 +588,44 @@ const StaffMSBTEResults = () => {
 
                     {expandedRow === r._id && (
                       <div className="border-t border-gray-100 bg-gray-50 px-5 py-4">
-                        {/* Compulsory subjects */}
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Compulsory Subjects</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
-                          {r.subjects?.filter(s => !r.elective || s.code !== r.elective.code).map(s => (
-                            <div key={s.code} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
-                              <div>
-                                <p className="text-xs font-semibold text-gray-800">{s.name}</p>
-                                <p className="text-xs text-gray-400">{s.code}</p>
-                              </div>
-                              <span className="text-sm font-bold text-indigo-600">{s.marks}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Elective subject */}
-                        {r.elective && (
-                          <>
-                            <p className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-2">Elective Subject</p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
-                              {r.subjects?.filter(s => s.code === r.elective.code).map(s => (
-                                <div key={s.code} className="flex items-center justify-between bg-amber-50 rounded-lg px-3 py-2 border border-amber-200">
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Subject-wise Marks</p>
+                        <div className="space-y-2 mb-3">
+                          {r.subjects?.map(s => {
+                            const isElec = r.elective?.code === s.code;
+                            const hasBreakdown = s.theoryMarks != null || s.practicalMarks != null;
+                            return (
+                              <div key={s.code}
+                                className={`rounded-xl px-4 py-3 border ${isElec ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-100'}`}>
+                                <div className="flex items-center justify-between mb-1">
                                   <div>
-                                    <p className="text-xs font-semibold text-gray-800">{s.name}</p>
-                                    <p className="text-xs text-amber-500">{s.code} • Elective</p>
+                                    <p className="text-sm font-semibold text-gray-800">{s.name}</p>
+                                    <p className="text-xs text-gray-400">{s.code}{isElec ? ' • Elective' : ''}</p>
                                   </div>
-                                  <span className="text-sm font-bold text-amber-600">{s.marks}</span>
+                                  <div className="text-right">
+                                    <p className="text-base font-bold text-indigo-600">
+                                      {s.totalMarks ?? s.marks} / {s.totalMax ?? 100}
+                                    </p>
+                                    <p className="text-xs text-gray-400">Total</p>
+                                  </div>
                                 </div>
-                              ))}
-                            </div>
-                          </>
-                        )}
-
+                                {hasBreakdown && (
+                                  <div className="flex gap-4 mt-1">
+                                    {s.theoryMarks != null && (
+                                      <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                                        Theory: {s.theoryMarks}/{s.theoryMax}
+                                      </span>
+                                    )}
+                                    {s.practicalMarks != null && (
+                                      <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full">
+                                        Practical: {s.practicalMarks}/{s.practicalMax}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                         {r.rejectedReason && (
                           <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 border border-red-100">
                             Rejection reason: {r.rejectedReason}
@@ -567,7 +638,6 @@ const StaffMSBTEResults = () => {
               </div>
             )}
           </div>
-
         </main>
       </div>
     </div>
