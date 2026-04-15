@@ -9,7 +9,13 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://student-desk-bf8j.vercel.app',
+    'http://localhost:3000'
+  ],
+  credentials: true
+}));
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
