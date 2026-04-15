@@ -135,7 +135,6 @@ const MSBTEResults = () => {
 
   // Build display rows: compulsory from config + the chosen elective from DB
   const semConfig   = semData ? (MSBTE_SUBJECTS[semData.semester] || { compulsory: [], electives: [] }) : null;
-  const electiveCode = semData?.elective?.code || null;
 
   const compulsoryRows = semConfig
     ? semConfig.compulsory.map(def => {

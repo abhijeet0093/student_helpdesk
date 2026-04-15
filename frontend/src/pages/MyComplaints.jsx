@@ -15,7 +15,6 @@ const MyComplaints = () => {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
   const [refreshMessage, setRefreshMessage] = useState('');
-  const [lastUpdated, setLastUpdated] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
   const [feedbackModal, setFeedbackModal] = useState(null);
@@ -47,7 +46,6 @@ const MyComplaints = () => {
       setRefreshMessage('');
       const response = await api.get('/complaints/my');
       setComplaints(response.data.data || []);
-      setLastUpdated(new Date());
       if (isRefresh) {
         setRefreshMessage('Complaints updated successfully!');
         setTimeout(() => setRefreshMessage(''), 3000);

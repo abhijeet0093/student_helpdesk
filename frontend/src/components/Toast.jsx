@@ -29,7 +29,7 @@ const Toast = ({ toast, onClose }) => {
       setTimeout(onClose, 300); // wait for fade-out
     }, 4000);
     return () => clearTimeout(timer);
-  }, [toast]);
+  }, [toast, onClose]);
 
   if (!toast) return null;
 

@@ -20,7 +20,7 @@ const AdminUTResults = () => {
   });
 
   useEffect(() => {
-    fetchResults();
+    fetchResults(); // eslint-disable-line react-hooks/exhaustive-deps
   }, [filter]);
 
   const fetchResults = async () => {

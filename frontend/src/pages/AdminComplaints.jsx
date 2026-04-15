@@ -55,7 +55,7 @@ const AdminComplaints = () => {
   const [escalating, setEscalating] = useState(false);
 
   useEffect(() => {
-    fetchComplaints();
+    fetchComplaints(); // eslint-disable-line react-hooks/exhaustive-deps
     fetchStaffList();
   }, []);
 

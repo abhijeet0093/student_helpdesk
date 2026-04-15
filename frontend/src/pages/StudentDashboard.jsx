@@ -9,7 +9,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Ba
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   
   const [dashboardData, setDashboardData] = useState(null);
   const [resultsData, setResultsData] = useState(null);

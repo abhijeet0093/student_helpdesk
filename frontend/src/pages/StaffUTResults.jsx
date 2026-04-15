@@ -8,11 +8,10 @@ const StaffUTResults = () => {
   const { user, logout } = useAuth();
   
   const [results, setResults] = useState([]);
-  const [subjects, setSubjects] = useState([]);
   const [availableSubjects, setAvailableSubjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [filter, setFilter] = useState({ semester: '', department: '', utType: '' });
+  const [filter] = useState({ semester: '', department: '', utType: '' });
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentPage, setCurrentPage] = useState('results');
   const [showModal, setShowModal] = useState(false);
@@ -33,16 +32,15 @@ const StaffUTResults = () => {
 
   useEffect(() => {
     fetchResults();
-    // Fetch subjects for initial year and semester
     fetchSubjectsForSemester(formData.year, formData.semester);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch subjects when year or semester changes
   useEffect(() => {
     if (formData.year && formData.semester) {
       fetchSubjectsForSemester(formData.year, formData.semester);
     }
-  }, [formData.year, formData.semester]);
+  }, [formData.year, formData.semester]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSubjectsForSemester = async (year, semester) => {
     try {

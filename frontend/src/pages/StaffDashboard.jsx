@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Loader from '../components/Loader';
@@ -7,7 +7,6 @@ import NotificationDropdown from '../components/NotificationDropdown';
 
 const StaffDashboard = () => {
   const navigate = useNavigate();
-  const location = useLocation();
   const { user, logout } = useAuth();
   
   const [complaints, setComplaints] = useState([]);

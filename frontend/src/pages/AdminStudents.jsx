@@ -74,7 +74,7 @@ const AdminStudents = () => {
   const [showUpload,   setShowUpload]   = useState(false);
   const [viewStudent,  setViewStudent]  = useState(null);
 
-  useEffect(() => { fetchStudents(); }, [filter]);
+  useEffect(() => { fetchStudents(); }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchStudents = async () => {
     try {

@@ -40,7 +40,6 @@ const BackupStatus = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [triggering, setTriggering] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => { fetchStatus(); }, []);
@@ -54,19 +53,6 @@ const BackupStatus = () => {
       setError(err.response?.data?.message || 'Failed to load backup status');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const triggerBackup = async () => {
-    if (!window.confirm('Run a manual backup now?')) return;
-    try {
-      setTriggering(true);
-      await api.post('/admin/run-backup');
-      await fetchStatus();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to trigger backup');
-    } finally {
-      setTriggering(false);
     }
   };
 

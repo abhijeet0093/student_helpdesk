@@ -19,7 +19,7 @@ const GRADE_STYLE = {
 
 const AdminMSBTEResults = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
 
   const [tab, setTab]               = useState('pending');
   const [results, setResults]       = useState([]);
