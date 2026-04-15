@@ -4,6 +4,16 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
+// ── Fail fast if required secrets are missing ──────────────────────────────
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set. Server will not start.');
+  process.exit(1);
+}
+if (!process.env.MONGO_URI) {
+  console.error('FATAL: MONGO_URI environment variable is not set. Server will not start.');
+  process.exit(1);
+}
+
 const app = express();
 
 // Middleware

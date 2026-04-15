@@ -1,16 +1,5 @@
-/**
- * Authentication Controller
- * Handles student, admin, and staff authentication
- * 
- * STRUCTURE:
- * 1. Imports at top
- * 2. All function definitions
- * 3. Single module.exports at bottom
- */
 
-// ============================================================================
-// IMPORTS
-// ============================================================================
+
 const Student = require('../models/Student');
 const Admin = require('../models/Admin');
 const Staff = require('../models/Staff');
@@ -21,135 +10,85 @@ const { generateToken } = require('../utils/jwt');
 // ============================================================================
 async function registerStudent(req, res) {
   try {
-    console.log('=== STUDENT REGISTRATION DEBUG ===');
-    console.log('Request Body:', req.body);
-    
-    // Frontend sends: rollNumber, enrollmentNumber, fullName, year, password
-    // Backend schema requires: rollNumber, enrollmentNumber, fullName, email, department, year, semester, password
     const { rollNumber, enrollmentNumber, fullName, year, password } = req.body;
-    
-    // Validate required fields
+
     if (!rollNumber || !enrollmentNumber || !fullName || !year || !password) {
-      console.error('Missing required fields');
-      return res.status(400).json({
-        success: false,
-        message: 'All fields are required'
-      });
-    }
-    
-    // Validate year range (diploma: 1-3)
-    const yearNum = parseInt(year);
-    if (isNaN(yearNum) || yearNum < 1 || yearNum > 3) {
-      return res.status(400).json({
-        success: false,
-        message: 'Year must be between 1 and 3'
-      });
+      return res.status(400).json({ success: false, message: 'All fields are required' });
     }
 
-    // Derive starting semester from year (Year 1 → Sem 1, Year 2 → Sem 3, Year 3 → Sem 5)
+    const yearNum = parseInt(year);
+    if (isNaN(yearNum) || yearNum < 1 || yearNum > 3) {
+      return res.status(400).json({ success: false, message: 'Year must be between 1 and 3' });
+    }
+
     const semesterNum = (yearNum - 1) * 2 + 1;
-    
-    // Validate password length (must match schema minlength: 8)
+
     if (password.length < 8) {
-      console.error('Password too short:', password.length);
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 8 characters long'
-      });
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long' });
     }
     
     // Check if student already exists by rollNumber or enrollmentNumber
-    console.log('Checking for existing student...');
     const existingStudent = await Student.findOne({
       $or: [
         { rollNumber: rollNumber.toUpperCase() },
         { enrollmentNumber: enrollmentNumber.toUpperCase() }
       ]
     });
-    
+
     if (existingStudent) {
-      console.error('Student already exists:', existingStudent.rollNumber);
       return res.status(400).json({
         success: false,
         message: 'Student already exists with this roll number or enrollment number'
       });
     }
-    
-    console.log('No existing student found, proceeding with registration...');
-    
+
     // Generate email from rollNumber
     const generatedEmail = `${rollNumber.toLowerCase()}@student.college.edu`;
-    
-    // Extract department from rollNumber (e.g., CS2024001 -> CS)
+
+    // Extract department from rollNumber prefix
     const departmentCode = rollNumber.replace(/[0-9]/g, '').toUpperCase();
     const departmentMap = {
-      'CS': 'Computer Science',
-      'IT': 'Information Technology',
+      'CS':   'Computer Science',
+      'IT':   'Information Technology',
       'ENTC': 'Electronics & Telecommunication',
       'MECH': 'Mechanical Engineering',
-      'CIVIL': 'Civil Engineering',
-      'ME': 'Mechanical Engineering',
-      'CE': 'Civil Engineering'
+      'CIVIL':'Civil Engineering',
+      'ME':   'Mechanical Engineering',
+      'CE':   'Civil Engineering'
     };
     const department = departmentMap[departmentCode] || 'General';
-    
-    console.log('Department extracted:', departmentCode, '->', department);
-    console.log('Year:', yearNum, '→ Semester:', semesterNum);
-    
-    // Create new student (password will be hashed by pre-save hook)
-    console.log('Creating student with data:', {
-      rollNumber: rollNumber.toUpperCase(),
-      enrollmentNumber: enrollmentNumber.toUpperCase(),
-      fullName,
-      email: generatedEmail,
-      department,
-      year: yearNum,
-      semester: semesterNum
-    });
-    
+
     const student = await Student.create({
-      rollNumber: rollNumber.toUpperCase(),
+      rollNumber:       rollNumber.toUpperCase(),
       enrollmentNumber: enrollmentNumber.toUpperCase(),
       fullName,
-      email: generatedEmail,
+      email:            generatedEmail,
       department,
-      year: yearNum,
-      semester: semesterNum,
+      year:             yearNum,
+      semester:         semesterNum,
       password
     });
     
-    console.log('Student created successfully:', student._id);
-    
     // Generate JWT token
-    const token = generateToken({
-      userId: student._id,
-      role: 'student'
-    });
-    
-    console.log('Token generated, sending response...');
-    
-    // Return success response
+    const token = generateToken({ userId: student._id, role: 'student' });
+
     res.status(201).json({
       success: true,
       message: 'Registration successful',
       token,
       student: {
-        id: student._id,
+        id:         student._id,
         rollNumber: student.rollNumber,
-        fullName: student.fullName,
-        email: student.email,
+        fullName:   student.fullName,
+        email:      student.email,
         department: student.department,
-        year: student.year,
-        semester: student.semester,
-        role: student.role
+        year:       student.year,
+        semester:   student.semester,
+        role:       student.role
       }
     });
-    
+
   } catch (error) {
-    console.error('=== STUDENT REGISTRATION ERROR ===');
-    console.error('Error:', error);
-    console.error('Error Message:', error.message);
-    console.error('Error Stack:', error.stack);
     
     // Handle duplicate key error
     if (error.code === 11000) {
@@ -224,6 +163,12 @@ async function loginStudent(req, res) {
         success: false,
         message: `Account locked. Try again in ${minutesLeft} minutes.`
       });
+    }
+
+    // Reset attempts if lock has expired
+    if (student.lockUntil && student.lockUntil < Date.now()) {
+      student.loginAttempts = 0;
+      student.lockUntil = null;
     }
     
     // Check if account is active
@@ -333,6 +278,12 @@ async function loginAdmin(req, res) {
         message: `Account locked. Try again in ${minutesLeft} minutes.`
       });
     }
+
+    // Reset attempts if lock has expired
+    if (admin.lockUntil && admin.lockUntil < Date.now()) {
+      admin.loginAttempts = 0;
+      admin.lockUntil = null;
+    }
     
     // Check if account is active
     if (!admin.isActive) {
@@ -434,6 +385,12 @@ async function loginStaff(req, res) {
         success: false,
         message: `Account locked. Try again in ${minutesLeft} minutes.`
       });
+    }
+
+    // Reset attempts if lock has expired
+    if (staff.lockUntil && staff.lockUntil < Date.now()) {
+      staff.loginAttempts = 0;
+      staff.lockUntil = null;
     }
     
     // Check if account is active
