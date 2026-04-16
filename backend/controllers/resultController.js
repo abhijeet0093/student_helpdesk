@@ -386,15 +386,21 @@ const getStaffResults = async (req, res) => {
 
     console.log('[getStaffResults] Query:', query);
 
-    const results = await UTResult.find(query)
-      .sort({ createdAt: -1 })
-      .limit(100);
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(100, parseInt(req.query.limit) || 50);
+    const skip  = (page - 1) * limit;
 
-    console.log('[getStaffResults] Found:', results.length);
+    const [results, total] = await Promise.all([
+      UTResult.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      UTResult.countDocuments(query)
+    ]);
+
+    console.log('[getStaffResults] Found:', results.length, '| Total:', total);
 
     res.status(200).json({
       success: true,
       count: results.length,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
       data: results
     });
 
@@ -422,22 +428,30 @@ const getAdminResults = async (req, res) => {
     if (utType) query.utType = utType;
     if (isPublished !== undefined) query.isPublished = isPublished === 'true';
 
-    const results = await UTResult.find(query)
-      .sort({ createdAt: -1 });
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(100, parseInt(req.query.limit) || 50);
+    const skip  = (page - 1) * limit;
 
-    // Get statistics
+    const [results, total] = await Promise.all([
+      UTResult.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      UTResult.countDocuments(query)
+    ]);
+
+    // Get statistics (on full unfiltered set for accuracy)
+    const allResults = await UTResult.find(query).select('isPublished utType');
     const stats = {
-      total: results.length,
-      released: results.filter(r => r.isPublished).length,
-      draft: results.filter(r => !r.isPublished).length,
-      ut1: results.filter(r => r.utType === 'UT1').length,
-      ut2: results.filter(r => r.utType === 'UT2').length
+      total,
+      released: allResults.filter(r => r.isPublished).length,
+      draft:    allResults.filter(r => !r.isPublished).length,
+      ut1:      allResults.filter(r => r.utType === 'UT1').length,
+      ut2:      allResults.filter(r => r.utType === 'UT2').length
     };
 
     res.status(200).json({
       success: true,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
       data: {
-        results: results,
+        results,
         statistics: stats
       }
     });

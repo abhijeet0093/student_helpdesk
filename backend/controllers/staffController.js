@@ -20,16 +20,25 @@ const getAssignedComplaints = async (req, res) => {
       query.status = status;
     }
 
-    // Fetch assigned complaints
-    const complaints = await Complaint.find(query)
-      .sort({ createdAt: -1 })
-      .select('complaintId studentName studentRollNumber studentDepartment category description status imagePath createdAt updatedAt');
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(50, parseInt(req.query.limit) || 10);
+    const skip  = (page - 1) * limit;
+
+    const [complaints, total] = await Promise.all([
+      Complaint.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select('complaintId studentName studentRollNumber studentDepartment category description status imagePath createdAt updatedAt'),
+      Complaint.countDocuments(query)
+    ]);
 
     res.status(200).json({
       success: true,
       data: {
-        complaints: complaints,
-        total: complaints.length
+        complaints,
+        total,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
       }
     });
 

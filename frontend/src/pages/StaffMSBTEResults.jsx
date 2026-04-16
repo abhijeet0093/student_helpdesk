@@ -2,6 +2,47 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import Sidebar from '../components/Sidebar';
+import NotificationDropdown from '../components/NotificationDropdown';
+
+const STAFF_MENU = [
+  {
+    name: 'Dashboard',
+    path: '/staff/dashboard',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      </svg>
+    )
+  },
+  {
+    name: 'Assigned Complaints',
+    path: '/staff/complaints',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    )
+  },
+  {
+    name: 'UT Results',
+    path: '/staff/results',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    )
+  },
+  {
+    name: 'MSBTE Results',
+    path: '/staff/msbte-results',
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+      </svg>
+    )
+  },
+];
 
 // ── Marking scheme (mirrors backend msbteMarkingScheme.js) ───────────────────
 const MARKING_SCHEME = {
@@ -68,17 +109,10 @@ const GRADE_STYLE = {
 
 const INITIAL_FORM = { rollNo: '', semester: '3', finalPercentage: '' };
 
-const navItems = [
-  { name: 'Dashboard',     path: '/staff/dashboard' },
-  { name: 'Complaints',    path: '/staff/complaints' },
-  { name: 'UT Results',    path: '/staff/results' },
-  { name: 'MSBTE Results', path: '/staff/msbte-results' },
-];
-
 const StaffMSBTEResults = () => {
   const navigate  = useNavigate();
-  const location  = useLocation();
   const { user, logout } = useAuth();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const [form, setForm]                       = useState(INITIAL_FORM);
   const [compulsory, setCompulsory]           = useState([]);
@@ -323,52 +357,45 @@ const StaffMSBTEResults = () => {
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col shadow-2xl flex-shrink-0">
-        <div className="p-6 border-b border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <span className="text-xl font-bold">Staff Panel</span>
-          </div>
-        </div>
-        <nav className="flex-1 p-4 space-y-2">
-          {navItems.map(item => (
-            <button key={item.path} onClick={() => navigate(item.path)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium ${
-                location.pathname === item.path
-                  ? 'bg-indigo-600 text-white shadow-lg'
-                  : 'text-gray-300 hover:bg-slate-800 hover:text-white'
-              }`}>
-              {item.name}
-            </button>
-          ))}
-        </nav>
-        <div className="p-4 border-t border-slate-700">
-          <button onClick={() => { logout(); navigate('/login'); }}
-            className="w-full px-4 py-3 rounded-xl text-red-300 hover:bg-red-900 hover:text-white transition-all font-medium">
-            Logout
-          </button>
-        </div>
-      </aside>
+      {/* Shared Sidebar */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(o => !o)}
+        menuItems={STAFF_MENU}
+        logoLabel="Staff Panel"
+        gradientClass="bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900"
+        onLogout={() => { logout(); navigate('/login'); }}
+      />
 
       {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white shadow-md p-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">MSBTE Result Entry</h1>
-            <p className="text-sm text-gray-500">Theory + Practical marks per subject — official MSBTE scheme</p>
-          </div>
-          <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-xl">
-            <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold">
-              {user?.name?.charAt(0).toUpperCase() || 'S'}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            {/* Mobile hamburger */}
+            <button
+              className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+              onClick={() => setSidebarOpen(o => !o)}
+              aria-label="Open menu"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">MSBTE Result Entry</h1>
+              <p className="text-sm text-gray-500">Theory + Practical marks per subject — official MSBTE scheme</p>
             </div>
-            <div className="hidden md:block">
-              <p className="text-sm font-semibold text-gray-900">{user?.name || 'Staff'}</p>
-              <p className="text-xs text-gray-500">{user?.department}</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <NotificationDropdown />
+            <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-xl">
+              <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-xl flex items-center justify-center text-white font-bold">
+                {user?.name?.charAt(0).toUpperCase() || 'S'}
+              </div>
+              <div className="hidden md:block">
+                <p className="text-sm font-semibold text-gray-900">{user?.name || 'Staff'}</p>
+                <p className="text-xs text-gray-500">{user?.department}</p>
+              </div>
             </div>
           </div>
         </header>

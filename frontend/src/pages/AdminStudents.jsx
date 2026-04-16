@@ -108,8 +108,11 @@ const AdminStudents = () => {
       setUploading(true);
       const formData = new FormData();
       formData.append('file', selectedFile);
+      // Do NOT manually set Content-Type — axios must auto-set it with the
+      // multipart boundary. Explicitly deleting it ensures the default
+      // 'application/json' from the axios instance doesn't override it.
       const res = await api.post('/admin/students/bulk-upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': undefined }
       });
       const d = res.data.data;
       setUploadResult({

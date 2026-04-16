@@ -25,7 +25,7 @@ const utResultSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
-    max: 3
+    max: 4  // supports both diploma (3yr) and degree (4yr) programs
   },
   subjectId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -89,7 +89,7 @@ const utResultSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
-    max: 6,
+    max: 8,  // up to 8 semesters for degree programs
     index: true
   },
   createdAt: {

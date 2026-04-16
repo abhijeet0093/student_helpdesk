@@ -1,25 +1,26 @@
 const express = require('express');
 const router = express.Router();
 const {
+  lookupEnrollment,
   registerStudent,
   loginStudent,
   loginAdmin,
   loginStaff
 } = require('../controllers/authController');
 
-/**
- * Authentication Routes
- * Separate endpoints for each user type
- */
+// Student: look up enrollment number (returns name for auto-fill, no sensitive data)
+router.post('/student/lookup', lookupEnrollment);
 
-// Student routes
+// Student: self-activation (set password for pre-registered account)
 router.post('/student/register', registerStudent);
+
+// Student: login with enrollment number + password
 router.post('/student/login', loginStudent);
 
-// Admin routes
+// Admin login
 router.post('/admin/login', loginAdmin);
 
-// Staff routes
+// Staff login
 router.post('/staff/login', loginStaff);
 
 module.exports = router;

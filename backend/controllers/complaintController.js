@@ -40,6 +40,21 @@ async function createComplaint(req, res) {
       return res.status(403).json({ success: false, message: 'Only active students can raise complaints.' });
     }
 
+    // Prevent duplicate complaints: same student, title, description within 5 minutes
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const duplicate = await Complaint.findOne({
+      student: studentId,
+      title: title.trim(),
+      description: description.trim(),
+      createdAt: { $gte: fiveMinutesAgo }
+    });
+    if (duplicate) {
+      return res.status(409).json({
+        success: false,
+        message: 'A similar complaint was already submitted recently. Please wait before resubmitting.'
+      });
+    }
+
     const complaintData = {
       student:             studentId,
       studentName:         student.fullName,
@@ -76,12 +91,26 @@ async function getMyComplaints(req, res) {
       return res.status(401).json({ success: false, message: 'Authentication required' });
     }
 
-    const complaints = await Complaint.find({ student: studentId })
-      .populate('student',    'fullName rollNumber')
-      .populate('assignedTo', 'name email')
-      .sort({ createdAt: -1 });
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(50, parseInt(req.query.limit) || 10);
+    const skip  = (page - 1) * limit;
 
-    res.json({ success: true, count: complaints.length, data: complaints });
+    const [complaints, total] = await Promise.all([
+      Complaint.find({ student: studentId })
+        .populate('student',    'fullName rollNumber')
+        .populate('assignedTo', 'name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Complaint.countDocuments({ student: studentId })
+    ]);
+
+    res.json({
+      success: true,
+      count: complaints.length,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      data: complaints
+    });
   } catch (error) {
     console.error('Get my complaints error:', error.message);
     res.status(500).json({ success: false, message: 'Failed to fetch complaints' });
@@ -119,12 +148,29 @@ async function getAllComplaints(req, res) {
       return res.status(403).json({ success: false, message: 'Access denied. Admin role required.' });
     }
 
-    const complaints = await Complaint.find()
-      .populate('student',    'fullName rollNumber email department')
-      .populate('assignedTo', 'name email')
-      .sort({ createdAt: -1 });
+    const page   = Math.max(1, parseInt(req.query.page)   || 1);
+    const limit  = Math.min(100, parseInt(req.query.limit) || 20);
+    const skip   = (page - 1) * limit;
+    const filter = {};
+    if (req.query.status)   filter.status   = req.query.status;
+    if (req.query.category) filter.category = req.query.category;
 
-    res.json({ success: true, count: complaints.length, data: complaints });
+    const [complaints, total] = await Promise.all([
+      Complaint.find(filter)
+        .populate('student',    'fullName rollNumber email department')
+        .populate('assignedTo', 'name email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Complaint.countDocuments(filter)
+    ]);
+
+    res.json({
+      success: true,
+      count: complaints.length,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      data: complaints
+    });
   } catch (error) {
     console.error('Get all complaints error:', error.message);
     res.status(500).json({ success: false, message: 'Failed to fetch complaints' });
@@ -211,10 +257,34 @@ async function assignComplaint(req, res) {
       return res.status(404).json({ success: false, message: `${modelType} not found` });
     }
 
+    // Prevent assigning to a deactivated staff/admin account
+    if (assignee.isActive === false) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot assign complaint to a deactivated ${modelType} account`
+      });
+    }
+
+    // If already assigned to someone else, record the reassignment in status history
+    const isReassignment = complaint.assignedTo &&
+      complaint.assignedTo.toString() !== staffId.toString();
+
     complaint.assignedTo      = staffId;
     complaint.assignedToModel = modelType;
     complaint.assignedToName  = assignee.name || assignee.fullName;
     complaint.status          = 'In Progress';
+
+    if (isReassignment) {
+      complaint.statusHistory.push({
+        status: 'In Progress',
+        changedBy: req.userId,
+        changedByModel: 'Admin',
+        changedByName: 'Admin',
+        timestamp: new Date(),
+        note: `Reassigned to ${assignee.name || assignee.fullName}`
+      });
+    }
+
     await complaint.save();
 
     await complaint.populate('student',    'fullName rollNumber');

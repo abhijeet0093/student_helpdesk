@@ -4,27 +4,28 @@ const Staff = require('../models/Staff');
 const { createNotification } = require('./notificationController');
 
 /**
- * GET ALL COMPLAINTS (Admin Only) with search, filter, analytics
+ * GET ALL COMPLAINTS (Admin Only) with search, filter, analytics, pagination
  * GET /api/admin/complaints
  */
 const getAllComplaints = async (req, res) => {
   try {
     const { status, category, department, priority, search, from, to } = req.query;
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(100, parseInt(req.query.limit) || 20);
+    const skip  = (page - 1) * limit;
 
     const query = {};
-    if (status) query.status = status;
-    if (category) query.category = category;
+    if (status)     query.status = status;
+    if (category)   query.category = category;
     if (department) query.studentDepartment = department;
-    if (priority) query.priority = priority;
+    if (priority)   query.priority = priority;
 
-    // Date range filter
     if (from || to) {
       query.createdAt = {};
       if (from) query.createdAt.$gte = new Date(from);
-      if (to) query.createdAt.$lte = new Date(to);
+      if (to)   query.createdAt.$lte = new Date(to);
     }
 
-    // Search by student name, roll number, or complaint ID
     if (search) {
       const regex = new RegExp(search, 'i');
       query.$or = [
@@ -35,39 +36,53 @@ const getAllComplaints = async (req, res) => {
       ];
     }
 
-    const complaints = await Complaint.find(query)
-      .sort({ createdAt: -1 })
-      .select('_id complaintId title studentName studentRollNumber studentDepartment category description priority status imagePath assignedToName isEscalated escalatedAt feedback createdAt updatedAt');
+    // Single aggregation for all status counts — avoids 6 separate DB round-trips
+    const [complaints, total, statusCounts, byCategory, byPriority] = await Promise.all([
+      Complaint.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .select('_id complaintId title studentName studentRollNumber studentDepartment category description priority status imagePath assignedToName isEscalated escalatedAt feedback createdAt updatedAt'),
 
+      Complaint.countDocuments(query),
+
+      Complaint.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } }
+      ]),
+
+      Complaint.aggregate([
+        { $group: { _id: '$category', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]),
+
+      Complaint.aggregate([
+        { $group: { _id: '$priority', count: { $sum: 1 } } }
+      ])
+    ]);
+
+    // Map aggregation result to named keys
+    const countMap = Object.fromEntries(statusCounts.map(s => [s._id, s.count]));
     const statistics = {
-      total: await Complaint.countDocuments(),
-      pending: await Complaint.countDocuments({ status: 'Pending' }),
-      inProgress: await Complaint.countDocuments({ status: 'In Progress' }),
-      resolved: await Complaint.countDocuments({ status: 'Resolved' }),
-      rejected: await Complaint.countDocuments({ status: 'Rejected' }),
-      escalated: await Complaint.countDocuments({ isEscalated: true })
+      total:      await Complaint.estimatedDocumentCount(), // fast, no filter
+      pending:    countMap['Pending']     || 0,
+      inProgress: countMap['In Progress'] || 0,
+      resolved:   countMap['Resolved']    || 0,
+      rejected:   countMap['Rejected']    || 0,
+      escalated:  countMap['Escalated']   || 0
     };
 
-    // Analytics: by category
-    const byCategory = await Complaint.aggregate([
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
-
-    // Analytics: by priority
-    const byPriority = await Complaint.aggregate([
-      { $group: { _id: '$priority', count: { $sum: 1 } } }
-    ]);
-
-    // Analytics: resolution rate (last 30 days)
+    // Resolution rate — last 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const recentTotal = await Complaint.countDocuments({ createdAt: { $gte: thirtyDaysAgo } });
-    const recentResolved = await Complaint.countDocuments({ status: 'Resolved', createdAt: { $gte: thirtyDaysAgo } });
+    const [recentTotal, recentResolved] = await Promise.all([
+      Complaint.countDocuments({ createdAt: { $gte: thirtyDaysAgo } }),
+      Complaint.countDocuments({ status: 'Resolved', createdAt: { $gte: thirtyDaysAgo } })
+    ]);
 
     res.status(200).json({
       success: true,
       data: {
         complaints,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
         statistics,
         analytics: {
           byCategory,

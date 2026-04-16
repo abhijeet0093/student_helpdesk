@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const Post = require('../models/Post');
+const ChatSession = require('../models/ChatSession');
+const ChatMessage = require('../models/ChatMessage');
 
 const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 const BATCH_LIMIT = 100; // max posts deleted per run
@@ -37,7 +39,7 @@ function deleteFile(filePath) {
   }
 }
 
-// ─── Main Cleanup ────────────────────────────────────────────────────────────
+// ─── Post Cleanup ────────────────────────────────────────────────────────────
 
 /**
  * Clean up posts older than 1 year.
@@ -45,7 +47,7 @@ function deleteFile(filePath) {
  * Batch limit: max 100 posts per run.
  */
 async function cleanOldPosts() {
-  logCleanup('[Cleanup] Started');
+  logCleanup('[PostCleanup] Started');
 
   try {
     const cutoff = new Date(Date.now() - ONE_YEAR_MS);
@@ -54,10 +56,10 @@ async function cleanOldPosts() {
       .limit(BATCH_LIMIT)
       .select('_id attachmentPath createdAt');
 
-    logCleanup(`[Cleanup] Found ${oldPosts.length} old post(s) (limit: ${BATCH_LIMIT})`);
+    logCleanup(`[PostCleanup] Found ${oldPosts.length} old post(s) (limit: ${BATCH_LIMIT})`);
 
     if (oldPosts.length === 0) {
-      logCleanup('[Cleanup] Nothing to delete. Done.');
+      logCleanup('[PostCleanup] Nothing to delete. Done.');
       return { deleted: 0, skipped: 0 };
     }
 
@@ -65,35 +67,60 @@ async function cleanOldPosts() {
     let skipped = 0;
 
     for (const post of oldPosts) {
-      // Step 1: delete file if exists
       if (post.attachmentPath) {
         const fileDeleted = deleteFile(post.attachmentPath);
         if (!fileDeleted) {
-          logCleanup(`[Cleanup] ERROR: Failed to delete file ${post.attachmentPath} — skipping post ${post._id}`);
+          logCleanup(`[PostCleanup] ERROR: Failed to delete file ${post.attachmentPath} — skipping post ${post._id}`);
           skipped++;
           continue;
         }
       }
 
-      // Step 2: delete DB record only after file is gone
       try {
         await Post.findByIdAndDelete(post._id);
         deleted++;
       } catch (err) {
-        logCleanup(`[Cleanup] ERROR: DB delete failed for post ${post._id} — ${err.message}`);
+        logCleanup(`[PostCleanup] ERROR: DB delete failed for post ${post._id} — ${err.message}`);
         skipped++;
       }
     }
 
-    logCleanup(`[Cleanup] Deleted: ${deleted}, Skipped: ${skipped}`);
-    logCleanup('[Cleanup] Completed');
+    logCleanup(`[PostCleanup] Deleted: ${deleted}, Skipped: ${skipped}`);
+    logCleanup('[PostCleanup] Completed');
 
     return { deleted, skipped };
 
   } catch (err) {
-    logCleanup(`[Cleanup] FATAL ERROR: ${err.message}`);
+    logCleanup(`[PostCleanup] FATAL ERROR: ${err.message}`);
     return { deleted: 0, skipped: 0 };
   }
 }
 
-module.exports = { cleanOldPosts };
+// ─── Orphaned ChatSession Cleanup ────────────────────────────────────────────
+
+/**
+ * Remove ChatSessions that have no remaining messages.
+ * MongoDB TTL deletes ChatMessages after 30 days, but the parent
+ * ChatSession may linger. This cleans those up.
+ */
+async function cleanOrphanedChatSessions() {
+  logCleanup('[ChatCleanup] Started orphaned session cleanup');
+
+  try {
+    // Find all session IDs that still have at least one message
+    const activeSessions = await ChatMessage.distinct('sessionId');
+
+    // Delete sessions NOT in that set
+    const result = await ChatSession.deleteMany({
+      _id: { $nin: activeSessions }
+    });
+
+    logCleanup(`[ChatCleanup] Removed ${result.deletedCount} orphaned session(s)`);
+    return { deleted: result.deletedCount };
+  } catch (err) {
+    logCleanup(`[ChatCleanup] ERROR: ${err.message}`);
+    return { deleted: 0 };
+  }
+}
+
+module.exports = { cleanOldPosts, cleanOrphanedChatSessions };

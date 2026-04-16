@@ -8,23 +8,10 @@ const ALLOWED_IMAGE_TYPES = {
   'image/png': '.png'
 };
 
-// Storage: uploads/images/
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = 'uploads/images';
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
 
-  filename: function (req, file, cb) {
-    // Secure filename: timestamp_randomhex.ext (never trust original name)
-    const ext = ALLOWED_IMAGE_TYPES[file.mimetype] || '.jpg';
-    const filename = `${Date.now()}_${Math.random().toString(36).substring(2, 10)}${ext}`;
-    cb(null, filename);
-  }
-});
+// Use memoryStorage so we can validate size BEFORE writing to disk
+const storage = multer.memoryStorage();
 
 // File filter: validate MIME type AND extension
 const fileFilter = (req, file, cb) => {
@@ -40,11 +27,47 @@ const fileFilter = (req, file, cb) => {
   cb(err, false);
 };
 
-// Upload config: images max 2MB
-const upload = multer({
+// Upload config: validate size in-memory (no disk write until controller)
+const uploadRaw = multer({
   storage,
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  limits: { fileSize: MAX_IMAGE_SIZE }, // reject oversized files before buffering completes
   fileFilter
 });
 
-module.exports = upload;
+/**
+ * Middleware that validates size in-memory then writes to disk.
+ * Replaces upload.single() for complaint image uploads.
+ */
+const uploadComplaintImage = (fieldName) => (req, res, next) => {
+  uploadRaw.single(fieldName)(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, message: 'Image size exceeds 2MB limit' });
+      }
+      if (err.code === 'INVALID_FILE_TYPE') {
+        return res.status(400).json({ success: false, message: err.message });
+      }
+      return next(err);
+    }
+
+    if (!req.file) return next();
+
+    // Write buffer to disk now that size is confirmed valid
+    const uploadDir = 'uploads/images';
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+    const ext = ALLOWED_IMAGE_TYPES[req.file.mimetype] || '.jpg';
+    const filename = `${Date.now()}_${Math.random().toString(36).substring(2, 10)}${ext}`;
+    const filePath = path.join(uploadDir, filename);
+
+    fs.writeFile(filePath, req.file.buffer, (writeErr) => {
+      if (writeErr) return next(writeErr);
+      // Attach file info matching multer diskStorage shape
+      req.file.filename = filename;
+      req.file.path = filePath;
+      next();
+    });
+  });
+};
+
+module.exports = { uploadComplaintImage };

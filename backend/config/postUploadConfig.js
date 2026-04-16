@@ -2,35 +2,18 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Allowed MIME types with their target folders and extensions
 const ALLOWED_TYPES = {
   'image/jpeg': { folder: 'uploads/images', ext: '.jpg' },
   'image/png':  { folder: 'uploads/images', ext: '.png' },
   'application/pdf': { folder: 'uploads/documents', ext: '.pdf' }
 };
 
-// Storage: images → uploads/images/, PDFs → uploads/documents/
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const config = ALLOWED_TYPES[file.mimetype];
-    const uploadPath = config ? config.folder : 'uploads/images';
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
+const MAX_PDF_SIZE   = 5 * 1024 * 1024; // 5MB
 
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
+// Use memoryStorage — validate size BEFORE writing to disk
+const storage = multer.memoryStorage();
 
-  filename: function (req, file, cb) {
-    // Secure filename: timestamp_randomhex.ext (never trust original name)
-    const config = ALLOWED_TYPES[file.mimetype];
-    const ext = config ? config.ext : path.extname(file.originalname).toLowerCase();
-    const filename = `${Date.now()}_${Math.random().toString(36).substring(2, 10)}${ext}`;
-    cb(null, filename);
-  }
-});
-
-// File filter: validate MIME type AND extension
 const fileFilter = (req, file, cb) => {
   const ext = path.extname(file.originalname).toLowerCase();
   const allowedExts = ['.jpg', '.jpeg', '.png', '.pdf'];
@@ -44,32 +27,53 @@ const fileFilter = (req, file, cb) => {
   cb(err, false);
 };
 
-// Upload config: images max 2MB, PDFs max 5MB
-// Multer applies one limit — use 5MB as ceiling, PDF vs image enforced in fileFilter
-const uploadPost = multer({
+// Allow up to 5MB in-memory (PDF ceiling); image limit enforced below
+const uploadRaw = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB ceiling
+  limits: { fileSize: MAX_PDF_SIZE },
   fileFilter
 });
 
-// Custom middleware to enforce 2MB limit specifically for images
-uploadPost.singleWithSizeCheck = (fieldName) => (req, res, next) => {
-  uploadPost.single(fieldName)(req, res, (err) => {
-    if (err) return next(err);
-
-    // After upload, check image-specific 2MB limit
-    if (req.file && ['image/jpeg', 'image/png'].includes(req.file.mimetype)) {
-      if (req.file.size > 2 * 1024 * 1024) {
-        // Delete the already-saved file
-        fs.unlink(req.file.path, () => {});
-        return res.status(400).json({
-          success: false,
-          message: 'Image size exceeds 2MB limit'
-        });
+/**
+ * Middleware: validates size per type, then writes buffer to disk.
+ */
+const singleWithSizeCheck = (fieldName) => (req, res, next) => {
+  uploadRaw.single(fieldName)(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, message: 'File size exceeds 5MB limit' });
       }
+      if (err.code === 'INVALID_FILE_TYPE') {
+        return res.status(400).json({ success: false, message: err.message });
+      }
+      return next(err);
     }
-    next();
+
+    if (!req.file) return next();
+
+    const isImage = ['image/jpeg', 'image/png'].includes(req.file.mimetype);
+
+    // Enforce 2MB limit for images (before any disk write)
+    if (isImage && req.file.size > MAX_IMAGE_SIZE) {
+      return res.status(400).json({ success: false, message: 'Image size exceeds 2MB limit' });
+    }
+
+    const config = ALLOWED_TYPES[req.file.mimetype];
+    const uploadDir = config.folder;
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+    const filename = `${Date.now()}_${Math.random().toString(36).substring(2, 10)}${config.ext}`;
+    const filePath = path.join(uploadDir, filename);
+
+    fs.writeFile(filePath, req.file.buffer, (writeErr) => {
+      if (writeErr) return next(writeErr);
+      req.file.filename = filename;
+      req.file.path = filePath;
+      next();
+    });
   });
 };
+
+const uploadPost = { singleWithSizeCheck };
 
 module.exports = uploadPost;

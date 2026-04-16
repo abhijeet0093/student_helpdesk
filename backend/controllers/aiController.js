@@ -2,8 +2,8 @@ const ChatSession = require('../models/ChatSession');
 const ChatMessage = require('../models/ChatMessage');
 const { generateAIResponse, validateMessage } = require('../services/aiService');
 
-// Rate limiting storage (in-memory - use Redis in production)
-const messageRateLimits = new Map();
+const AI_RATE_LIMIT = 10;       // max messages per window
+const RATE_WINDOW_MS = 60_000;  // 1 minute
 
 /**
  * SEND MESSAGE TO AI
@@ -23,31 +23,23 @@ const sendMessage = async (req, res) => {
       });
     }
 
-    // Rate limiting check
-    const rateLimitKey = `student_${studentId}`;
-    const now = Date.now();
-    const oneMinute = 60 * 1000;
+    // Persistent rate limiting — count student messages in the last minute via MongoDB
+    const windowStart = new Date(Date.now() - RATE_WINDOW_MS);
+    const recentCount = await ChatMessage.countDocuments({
+      sender: 'student',
+      createdAt: { $gte: windowStart },
+      // join via session to scope to this student
+      sessionId: {
+        $in: await ChatSession.distinct('_id', { studentId })
+      }
+    });
 
-    if (!messageRateLimits.has(rateLimitKey)) {
-      messageRateLimits.set(rateLimitKey, []);
-    }
-
-    const userMessages = messageRateLimits.get(rateLimitKey);
-    
-    // Remove messages older than 1 minute
-    const recentMessages = userMessages.filter(timestamp => now - timestamp < oneMinute);
-    
-    // Check if exceeded limit (max 10 messages per minute)
-    if (recentMessages.length >= 10) {
+    if (recentCount >= AI_RATE_LIMIT) {
       return res.status(429).json({
         success: false,
         message: 'Too many messages. Please wait a moment before sending more.'
       });
     }
-
-    // Add current message timestamp
-    recentMessages.push(now);
-    messageRateLimits.set(rateLimitKey, recentMessages);
 
     // Find or create chat session
     let session = await ChatSession.findOne({ studentId: studentId })

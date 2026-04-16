@@ -4,128 +4,135 @@ const Student = require('../models/Student');
 const Admin = require('../models/Admin');
 const Staff = require('../models/Staff');
 const { generateToken } = require('../utils/jwt');
+const { ALLOWED_COURSES } = require('../constants/courses');
 
 // ============================================================================
-// STUDENT REGISTRATION
+// LOOKUP ENROLLMENT — public, returns only name (for auto-fill on register page)
+// GET-style via POST: POST /api/auth/student/lookup
+// ============================================================================
+async function lookupEnrollment(req, res) {
+  try {
+    const { enrollmentNumber } = req.body;
+    if (!enrollmentNumber) {
+      return res.status(400).json({ success: false, message: 'Enrollment number is required' });
+    }
+
+    const student = await Student.findOne({
+      enrollmentNumber: enrollmentNumber.trim().toUpperCase()
+    }).select('fullName department year course isActivated');
+
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Enrollment number not found. Contact admin.' });
+    }
+
+    if (student.isActivated) {
+      return res.status(409).json({ success: false, message: 'Account already activated. Please login.' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        fullName:   student.fullName,
+        department: student.department,
+        year:       student.year,
+        course:     student.course || null  // null means student must select it themselves
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Lookup failed. Please try again.' });
+  }
+}
+
+// ============================================================================
+// STUDENT SELF-ACTIVATION (replaces open registration)
+// POST /api/auth/student/register
 // ============================================================================
 async function registerStudent(req, res) {
   try {
-    const { rollNumber, enrollmentNumber, fullName, year, password } = req.body;
+    const { enrollmentNumber, password, confirmPassword, course } = req.body;
 
-    if (!rollNumber || !enrollmentNumber || !fullName || !year || !password) {
-      return res.status(400).json({ success: false, message: 'All fields are required' });
+    if (!enrollmentNumber || !password || !confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Enrollment number, password, and confirm password are required' });
     }
 
-    const yearNum = parseInt(year);
-    if (isNaN(yearNum) || yearNum < 1 || yearNum > 3) {
-      return res.status(400).json({ success: false, message: 'Year must be between 1 and 3' });
+    if (password !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Passwords do not match' });
     }
-
-    const semesterNum = (yearNum - 1) * 2 + 1;
 
     if (password.length < 8) {
       return res.status(400).json({ success: false, message: 'Password must be at least 8 characters long' });
     }
-    
-    // Check if student already exists by rollNumber or enrollmentNumber
-    const existingStudent = await Student.findOne({
-      $or: [
-        { rollNumber: rollNumber.toUpperCase() },
-        { enrollmentNumber: enrollmentNumber.toUpperCase() }
-      ]
+
+    // Validate course if provided by student (not pre-filled by admin)
+    if (course && !ALLOWED_COURSES.includes(course)) {
+      return res.status(400).json({ success: false, message: 'Invalid course selected. Please choose from the allowed list.' });
+    }
+
+    const student = await Student.findOne({
+      enrollmentNumber: enrollmentNumber.trim().toUpperCase()
     });
 
-    if (existingStudent) {
-      return res.status(400).json({
+    if (!student) {
+      return res.status(404).json({
         success: false,
-        message: 'Student already exists with this roll number or enrollment number'
+        message: 'Enrollment number not found. You must be pre-registered by admin before activating your account.'
       });
     }
 
-    // Generate email from rollNumber
-    const generatedEmail = `${rollNumber.toLowerCase()}@student.college.edu`;
+    if (student.isActivated) {
+      return res.status(409).json({
+        success: false,
+        message: 'Account already activated. Please login with your credentials.'
+      });
+    }
 
-    // Extract department from rollNumber prefix
-    const departmentCode = rollNumber.replace(/[0-9]/g, '').toUpperCase();
-    const departmentMap = {
-      'CS':   'Computer Science',
-      'IT':   'Information Technology',
-      'ENTC': 'Electronics & Telecommunication',
-      'MECH': 'Mechanical Engineering',
-      'CIVIL':'Civil Engineering',
-      'ME':   'Mechanical Engineering',
-      'CE':   'Civil Engineering'
-    };
-    const department = departmentMap[departmentCode] || 'General';
+    // Course: use admin-set value if present, otherwise require student to provide it
+    const finalCourse = student.course || course;
+    if (!finalCourse) {
+      return res.status(400).json({ success: false, message: 'Please select your course.' });
+    }
+    if (!ALLOWED_COURSES.includes(finalCourse)) {
+      return res.status(400).json({ success: false, message: 'Invalid course. Please select a valid course.' });
+    }
 
-    const student = await Student.create({
-      rollNumber:       rollNumber.toUpperCase(),
-      enrollmentNumber: enrollmentNumber.toUpperCase(),
-      fullName,
-      email:            generatedEmail,
-      department,
-      year:             yearNum,
-      semester:         semesterNum,
-      password
-    });
-    
-    // Generate JWT token
+    // Set password, course, and activate
+    student.password    = password; // pre-save hook hashes it
+    student.course      = finalCourse;
+    student.isActivated = true;
+    student.isActive    = true;
+
+    if (!student.email) {
+      student.email = `${enrollmentNumber.trim().toLowerCase()}@student.campusone.edu`;
+    }
+
+    await student.save();
+
     const token = generateToken({ userId: student._id, role: 'student' });
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful',
+      message: 'Account activated successfully! Welcome to CampusOne.',
       token,
       student: {
-        id:         student._id,
-        rollNumber: student.rollNumber,
-        fullName:   student.fullName,
-        email:      student.email,
-        department: student.department,
-        year:       student.year,
-        semester:   student.semester,
-        role:       student.role
+        id:               student._id,
+        enrollmentNumber: student.enrollmentNumber,
+        rollNumber:       student.rollNumber,
+        fullName:         student.fullName,
+        email:            student.email,
+        department:       student.department,
+        course:           student.course,
+        year:             student.year,
+        semester:         student.semester,
+        role:             student.role
       }
     });
 
   } catch (error) {
-    
-    // Handle duplicate key error
-    if (error.code === 11000) {
-      console.error('Duplicate key error details:', error.keyPattern, error.keyValue);
-      
-      // Get the field that caused the duplicate
-      const field = Object.keys(error.keyPattern)[0];
-      
-      // Provide user-friendly messages for each field
-      const fieldMessages = {
-        'rollNumber': 'This roll number is already registered',
-        'enrollmentNumber': 'This enrollment number is already registered',
-        'email': 'This email is already registered',
-        'studentMasterId': 'Registration ID conflict. Please try again or contact support.'
-      };
-      
-      const message = fieldMessages[field] || `A student with this ${field} already exists`;
-      
-      return res.status(400).json({
-        success: false,
-        message: message
-      });
-    }
-    
-    // Handle validation errors
     if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({
-        success: false,
-        message: messages.join(', ')
-      });
+      const messages = Object.values(error.errors).map(e => e.message);
+      return res.status(400).json({ success: false, message: messages.join(', ') });
     }
-    
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Registration failed. Please try again.'
-    });
+    res.status(500).json({ success: false, message: error.message || 'Activation failed. Please try again.' });
   }
 }
 
@@ -144,9 +151,12 @@ async function loginStudent(req, res) {
       });
     }
     
-    // Find student by roll number
-    const student = await Student.findOne({ 
-      rollNumber: rollNumber.toUpperCase() 
+    // Find student by enrollment number OR roll number
+    const student = await Student.findOne({
+      $or: [
+        { enrollmentNumber: rollNumber.toUpperCase() },
+        { rollNumber: rollNumber.toUpperCase() }
+      ]
     });
     
     if (!student) {
@@ -155,7 +165,22 @@ async function loginStudent(req, res) {
         message: 'Invalid credentials'
       });
     }
+
+    // Must be activated before login is allowed
+    if (!student.isActivated) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account not activated. Please register on the registration page first.'
+      });
+    }
     
+    // Reset attempts if lock has expired (must run BEFORE isLocked check)
+    if (student.lockUntil && student.lockUntil < Date.now()) {
+      student.loginAttempts = 0;
+      student.lockUntil = null;
+      await student.save();
+    }
+
     // Check if account is locked
     if (student.isLocked()) {
       const minutesLeft = Math.ceil((student.lockUntil - Date.now()) / 60000);
@@ -163,12 +188,6 @@ async function loginStudent(req, res) {
         success: false,
         message: `Account locked. Try again in ${minutesLeft} minutes.`
       });
-    }
-
-    // Reset attempts if lock has expired
-    if (student.lockUntil && student.lockUntil < Date.now()) {
-      student.loginAttempts = 0;
-      student.lockUntil = null;
     }
     
     // Check if account is active
@@ -270,6 +289,13 @@ async function loginAdmin(req, res) {
       });
     }
     
+    // Reset attempts if lock has expired (must run BEFORE isLocked check)
+    if (admin.lockUntil && admin.lockUntil < Date.now()) {
+      admin.loginAttempts = 0;
+      admin.lockUntil = null;
+      await admin.save();
+    }
+
     // Check if account is locked
     if (admin.isLocked()) {
       const minutesLeft = Math.ceil((admin.lockUntil - Date.now()) / 60000);
@@ -277,12 +303,6 @@ async function loginAdmin(req, res) {
         success: false,
         message: `Account locked. Try again in ${minutesLeft} minutes.`
       });
-    }
-
-    // Reset attempts if lock has expired
-    if (admin.lockUntil && admin.lockUntil < Date.now()) {
-      admin.loginAttempts = 0;
-      admin.lockUntil = null;
     }
     
     // Check if account is active
@@ -378,6 +398,13 @@ async function loginStaff(req, res) {
       });
     }
     
+    // Reset attempts if lock has expired (must run BEFORE isLocked check)
+    if (staff.lockUntil && staff.lockUntil < Date.now()) {
+      staff.loginAttempts = 0;
+      staff.lockUntil = null;
+      await staff.save();
+    }
+
     // Check if account is locked
     if (staff.isLocked()) {
       const minutesLeft = Math.ceil((staff.lockUntil - Date.now()) / 60000);
@@ -385,12 +412,6 @@ async function loginStaff(req, res) {
         success: false,
         message: `Account locked. Try again in ${minutesLeft} minutes.`
       });
-    }
-
-    // Reset attempts if lock has expired
-    if (staff.lockUntil && staff.lockUntil < Date.now()) {
-      staff.loginAttempts = 0;
-      staff.lockUntil = null;
     }
     
     // Check if account is active
@@ -464,6 +485,7 @@ async function loginStaff(req, res) {
 // EXPORTS - Single export statement at the bottom
 // ============================================================================
 module.exports = {
+  lookupEnrollment,
   registerStudent,
   loginStudent,
   loginAdmin,

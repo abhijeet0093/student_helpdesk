@@ -4,10 +4,18 @@ const bcrypt = require('bcryptjs');
 const studentSchema = new mongoose.Schema({
   rollNumber: {
     type: String,
-    required: true,
-    unique: true,
+    default: null,
     uppercase: true,
-    trim: true
+    trim: true,
+    sparse: true, // allows multiple null values with unique index
+    validate: {
+      validator: function(v) {
+        if (!v) return true; // null is allowed (pre-registered, not yet activated)
+        // Accept any alphanumeric roll number (MSBTE, numeric, or custom formats)
+        return /^[A-Z0-9]{2,20}$/.test(v);
+      },
+      message: 'Invalid roll number format'
+    }
   },
   enrollmentNumber: {
     type: String,
@@ -23,34 +31,44 @@ const studentSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: true,
-    unique: true,
+    default: null,
     lowercase: true,
-    trim: true
+    trim: true,
+    sparse: true
   },
   password: {
     type: String,
-    required: true,
+    default: null,   // null until student self-activates
     minlength: 8
   },
   department: {
     type: String,
     required: true
   },
+  course: {
+    type: String,
+    default: null,
+    enum: {
+      values: [null, 'Computer Engineering', 'Information Technology', 'Mechanical Engineering', 'Civil Engineering', 'Electrical Engineering'],
+      message: 'Invalid course. Must be one of the allowed courses.'
+    }
+  },
   year: {
     type: Number,
     required: true,
     min: 1,
-    max: 3,
-    default: function() {
-      return Math.ceil(this.semester / 2);
-    }
+    max: 4  // Diploma is 3 years, Degree is 4 years
   },
   semester: {
     type: Number,
     required: true,
     min: 1,
-    max: 6
+    max: 8  // Up to 8 semesters for degree programs
+  },
+  // Self-activation flag — false until student sets their own password
+  isActivated: {
+    type: Boolean,
+    default: false
   },
   role: {
     type: String,
@@ -85,12 +103,11 @@ const studentSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Hash password before saving
+// Hash password before saving — only when password is set and modified
 studentSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
+  if (!this.isModified('password') || !this.password) {
     return next();
   }
-  
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
@@ -100,7 +117,6 @@ studentSchema.pre('save', async function(next) {
   }
 });
 
-// Method to compare password
 studentSchema.methods.comparePassword = async function(candidatePassword) {
   try {
     return await bcrypt.compare(candidatePassword, this.password);
@@ -109,7 +125,6 @@ studentSchema.methods.comparePassword = async function(candidatePassword) {
   }
 };
 
-// Method to check if account is locked
 studentSchema.methods.isLocked = function() {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 };

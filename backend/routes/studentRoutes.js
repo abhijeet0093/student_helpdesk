@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const path = require('path');
 const {
   bulkUploadStudents,
   downloadTemplate,
@@ -9,41 +10,49 @@ const {
 } = require('../controllers/studentBulkController');
 const { authenticate, authorizeAdmin } = require('../middleware/authMiddleware');
 
-// Configure multer for Excel file upload
-const storage = multer.memoryStorage();
+// ── Multer config for Excel uploads ──────────────────────────────────────────
+// Use memoryStorage so xlsx can read the buffer directly
 const upload = multer({
-  storage: storage,
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
   fileFilter: (req, file, cb) => {
-    // Accept only Excel files
-    if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-        file.mimetype === 'application/vnd.ms-excel') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only Excel files are allowed'), false);
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExts = ['.xlsx', '.xls'];
+    // Accept by extension — browsers send inconsistent MIME types for Excel
+    if (allowedExts.includes(ext)) {
+      return cb(null, true);
     }
-  },
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
+    const err = new Error('Only Excel files (.xlsx, .xls) are allowed');
+    err.code = 'INVALID_FILE_TYPE';
+    cb(err, false);
   }
 });
 
-/**
- * STUDENT MANAGEMENT ROUTES (Admin Only)
- */
+// Wrapper that converts multer errors into clean JSON responses
+const uploadMiddleware = (req, res, next) => {
+  upload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ success: false, message: 'File size exceeds 5MB limit' });
+    }
+    if (err.code === 'INVALID_FILE_TYPE' || err instanceof multer.MulterError) {
+      return res.status(400).json({ success: false, message: err.message });
+    }
+    next(err);
+  });
+};
 
-// Download Excel template
+// ── Routes (Admin Only) ───────────────────────────────────────────────────────
+
 // GET /api/admin/students/template
 router.get('/template', authenticate, authorizeAdmin, downloadTemplate);
 
-// Bulk upload students from Excel
 // POST /api/admin/students/bulk-upload
-router.post('/bulk-upload', authenticate, authorizeAdmin, upload.single('file'), bulkUploadStudents);
+router.post('/bulk-upload', authenticate, authorizeAdmin, uploadMiddleware, bulkUploadStudents);
 
-// Get all students
 // GET /api/admin/students
 router.get('/', authenticate, authorizeAdmin, getAllStudents);
 
-// Delete student
 // DELETE /api/admin/students/:id
 router.delete('/:id', authenticate, authorizeAdmin, deleteStudent);
 

@@ -12,17 +12,17 @@ const { authenticate } = require('../middleware/authMiddleware');
 // All routes require authentication
 router.use(authenticate);
 
+// Get unread count — MUST be before /:id routes
+router.get('/unread-count', getUnreadCount);
+
+// Mark all as read — MUST be before /:id/read to avoid 'read-all' matching as an id
+router.put('/read-all', markAllAsRead);
+
 // Get all notifications
 router.get('/', getNotifications);
 
-// Get unread count
-router.get('/unread-count', getUnreadCount);
-
 // Mark notification as read
 router.put('/:id/read', markAsRead);
-
-// Mark all as read
-router.put('/read-all', markAllAsRead);
 
 // Delete notification
 router.delete('/:id', deleteNotification);

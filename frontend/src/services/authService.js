@@ -1,7 +1,13 @@
 import api from './api';
 
 const authService = {
-  // Student Registration
+  // Look up enrollment number — returns name for auto-fill (no sensitive data)
+  lookupEnrollment: async (enrollmentNumber) => {
+    const response = await api.post('/auth/student/lookup', { enrollmentNumber });
+    return response.data;
+  },
+
+  // Student self-activation (enrollment number + new password)
   registerStudent: async (data) => {
     const response = await api.post('/auth/student/register', data);
     return response.data;

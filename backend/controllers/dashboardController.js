@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Student = require('../models/Student');
 const Complaint = require('../models/Complaint');
 const UTResult = require('../models/UTResult');
@@ -21,14 +22,18 @@ const getDashboardData = async (req, res) => {
       });
     }
 
-    // Get complaint statistics
-    const totalComplaints = await Complaint.countDocuments({ student: studentId });
-    
+    // Get complaint statistics — single aggregation instead of 4 separate queries
+    const complaintAgg = await Complaint.aggregate([
+      { $match: { student: new mongoose.Types.ObjectId(studentId.toString()) } },
+      { $group: { _id: '$status', count: { $sum: 1 } } }
+    ]);
+    const statusMap = Object.fromEntries(complaintAgg.map(s => [s._id, s.count]));
+    const totalComplaints = complaintAgg.reduce((sum, s) => sum + s.count, 0);
     const complaintsByStatus = {
-      pending: await Complaint.countDocuments({ student: studentId, status: 'Pending' }),
-      inProgress: await Complaint.countDocuments({ student: studentId, status: 'In Progress' }),
-      resolved: await Complaint.countDocuments({ student: studentId, status: 'Resolved' }),
-      rejected: await Complaint.countDocuments({ student: studentId, status: 'Rejected' })
+      pending:    statusMap['Pending']     || 0,
+      inProgress: statusMap['In Progress'] || 0,
+      resolved:   statusMap['Resolved']    || 0,
+      rejected:   statusMap['Rejected']    || 0
     };
 
     // Get latest complaint

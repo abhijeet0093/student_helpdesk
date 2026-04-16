@@ -66,5 +66,9 @@ const postSchema = new mongoose.Schema({
 // Index for efficient queries
 postSchema.index({ createdAt: -1 });
 postSchema.index({ isReported: 1 });
+// TTL: auto-delete posts older than 1 year (365 days = 31536000 seconds)
+// The cron cleanup service also handles this with file deletion first.
+// This TTL is a safety net for DB-only cleanup if the cron misses a run.
+postSchema.index({ createdAt: 1 }, { expireAfterSeconds: 31536000 });
 
 module.exports = mongoose.model('Post', postSchema);

@@ -2,14 +2,16 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import aiService from '../services/aiService';
+import Sidebar from '../components/Sidebar';
+import parseApiError from '../utils/parseApiError';
 
 const MENU = [
-  { name: 'Dashboard', path: '/dashboard' },
-  { name: 'Raise Complaint', path: '/complaints/new' },
-  { name: 'My Complaints', path: '/complaints' },
-  { name: 'UT Results', path: '/results' },
-  { name: 'Student Corner', path: '/corner' },
-  { name: 'AI Assistant', path: '/ai-chat' },
+  { name: 'Dashboard',       path: '/dashboard',      icon: <span>🏠</span> },
+  { name: 'Raise Complaint', path: '/complaints/new', icon: <span>➕</span> },
+  { name: 'My Complaints',   path: '/complaints',     icon: <span>📋</span> },
+  { name: 'UT Results',      path: '/results',        icon: <span>📊</span> },
+  { name: 'Student Corner',  path: '/corner',         icon: <span>💬</span> },
+  { name: 'AI Assistant',    path: '/ai-chat',        icon: <span>🤖</span> },
 ];
 
 const AIChat = () => {
@@ -66,7 +68,7 @@ const AIChat = () => {
         });
       }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Failed to get response. Please try again.';
+      const msg = parseApiError(err, 'Failed to get response. Please try again.');
       setError(msg);
       setMessages(prev => [...prev, { sender: 'ai', text: `Sorry, I encountered an error: ${msg}`, timestamp: new Date().toISOString() }]);
     } finally { setIsTyping(false); }
@@ -80,54 +82,33 @@ const AIChat = () => {
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 animate-fade-in">
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-20'} bg-gradient-to-b from-indigo-600 via-indigo-700 to-indigo-900 text-white transition-all duration-300 flex flex-col shadow-2xl relative z-20 overflow-hidden`}>
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-purple-600/20 opacity-50"></div>
-        <div className="p-6 border-b border-indigo-500/30 relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center shadow-lg backdrop-blur-sm animate-float">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-            </div>
-            {sidebarOpen && <span className="text-xl font-bold bg-gradient-to-r from-white to-blue-200 bg-clip-text text-transparent">Smart Campus</span>}
-          </div>
-        </div>
-        <nav className="flex-1 p-4 space-y-2 relative z-10">
-          {MENU.map((item, index) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <button key={item.path} onClick={() => navigate(item.path)}
-                style={{ animationDelay: `${index * 0.1}s` }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 animate-slide-in-right group ${isActive ? 'bg-white text-indigo-600 shadow-lg scale-105' : 'text-indigo-100 hover:bg-indigo-700/50 hover:text-white hover:scale-105'}`}>
-                <span className="group-hover:scale-110 transition-transform duration-300 text-lg">{item.name === 'Dashboard' ? '🏠' : item.name === 'Raise Complaint' ? '➕' : item.name === 'My Complaints' ? '📋' : item.name === 'UT Results' ? '📊' : item.name === 'Student Corner' ? '💬' : '🤖'}</span>
-                {sidebarOpen && <span className="font-medium">{item.name}</span>}
-              </button>
-            );
-          })}
-        </nav>
-        <div className="p-4 border-t border-indigo-500/30 relative z-10">
-          <button onClick={() => { logout(); navigate('/login'); }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-300 hover:bg-gradient-to-r hover:from-red-600 hover:to-red-700 hover:text-white transition-all duration-300 hover:scale-105">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            {sidebarOpen && <span className="font-medium">Logout</span>}
-          </button>
-        </div>
-        <button onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="absolute -right-3 top-20 w-6 h-6 bg-gradient-to-r from-indigo-600 to-blue-600 rounded-full flex items-center justify-center text-white shadow-lg hover:scale-110 transition-all duration-300 z-20">
-          <svg className={`w-4 h-4 transform transition-transform duration-300 ${sidebarOpen ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-      </aside>
+      <Sidebar
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(o => !o)}
+        menuItems={MENU}
+        logoLabel="CampusOne"
+        gradientClass="bg-gradient-to-b from-indigo-600 via-indigo-700 to-indigo-900"
+        onLogout={() => { logout(); navigate('/login'); }}
+      />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <header className="bg-white/80 backdrop-blur-md shadow-lg border-b border-gray-200/50 p-4 flex justify-between items-center sticky top-0 z-10">
-          <div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">AI Assistant</h1>
-            <p className="text-sm text-gray-600">Your smart study companion</p>
+          <div className="flex items-center gap-3">
+            {/* Mobile hamburger */}
+            <button
+              className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+              onClick={() => setSidebarOpen(o => !o)}
+              aria-label="Open menu"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">AI Assistant</h1>
+              <p className="text-sm text-gray-600">Your smart study companion</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={handleClearHistory}
@@ -150,11 +131,20 @@ const AIChat = () => {
         <div className="flex-1 flex flex-col overflow-hidden p-4">
           <div className="flex-1 bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col animate-scale-in">
             {/* Chat Header */}
-            <div className="bg-gradient-to-r from-indigo-500 to-blue-600 text-white p-4 flex items-center gap-3">
-              <div className="text-2xl">🤖</div>
-              <div>
-                <h2 className="font-semibold">AI Study Assistant</h2>
-                <p className="text-sm text-indigo-100">Always here to help</p>
+            <div className="bg-gradient-to-r from-indigo-500 to-blue-600 text-white p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="text-2xl">🤖</div>
+                <div>
+                  <h2 className="font-semibold">AI Study Assistant</h2>
+                  <p className="text-sm text-indigo-100">Always here to help</p>
+                </div>
+              </div>
+              {/* 30-day retention notice */}
+              <div className="hidden sm:flex items-center gap-1.5 bg-white/15 rounded-lg px-3 py-1.5 text-xs text-indigo-100">
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Messages stored for 30 days
               </div>
             </div>
 
@@ -200,6 +190,13 @@ const AIChat = () => {
 
             {/* Input */}
             <div className="border-t border-gray-100 p-4 bg-white">
+              {/* Mobile 30-day notice */}
+              <p className="sm:hidden text-xs text-gray-400 mb-2 flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Messages stored for 30 days
+              </p>
               {error && (
                 <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-xl mb-3 text-sm text-red-700">{error}</div>
               )}

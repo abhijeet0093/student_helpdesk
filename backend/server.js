@@ -2,15 +2,21 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
+
+// Ensure uploads directories exist
+['uploads/images', 'uploads/documents'].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
 
 // ── Fail fast if required secrets are missing ──────────────────────────────
 if (!process.env.JWT_SECRET) {
   console.error('FATAL: JWT_SECRET environment variable is not set. Server will not start.');
   process.exit(1);
 }
-if (!process.env.MONGO_URI) {
-  console.error('FATAL: MONGO_URI environment variable is not set. Server will not start.');
+if (!process.env.MONGO_URI && !process.env.MONGODB_URI) {
+  console.error('FATAL: MONGO_URI (or MONGODB_URI) environment variable is not set. Server will not start.');
   process.exit(1);
 }
 
@@ -43,12 +49,28 @@ app.get('/', (req, res) => {
   });
 });
 
-// Health Check
-app.get('/api/health', (req, res) => {
+// Health Check — includes DB state and uptime for cold-start detection
+app.get('/api/health', async (req, res) => {
+  const dbState = mongoose.connection.readyState;
+  const dbStatus = ['disconnected', 'connected', 'connecting', 'disconnecting'][dbState] || 'unknown';
+
+  // Optionally ping DB to confirm liveness
+  let dbPingMs = null;
+  if (dbState === 1) {
+    try {
+      const t0 = Date.now();
+      await mongoose.connection.db.admin().ping();
+      dbPingMs = Date.now() - t0;
+    } catch (_) { /* non-fatal */ }
+  }
+
   res.json({
     success: true,
     message: 'Server is healthy',
-    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
+    database: dbStatus,
+    dbPingMs,
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString()
   });
 });
 

@@ -82,7 +82,6 @@ const bulkUploadStudents = async (req, res) => {
         const department = getColumnValue(row, ['department', 'Department', 'dept']);
         const year = getColumnValue(row, ['year', 'Year']);
         const semester = getColumnValue(row, ['semester', 'Semester', 'sem']);
-        const password = getColumnValue(row, ['password', 'Password']);
         
         // Validate required fields
         if (!rollNumber || !fullName || !enrollmentNumber) {
@@ -138,8 +137,6 @@ const bulkUploadStudents = async (req, res) => {
         }
         
         console.log(`Department: ${finalDepartment}`);
-
-        // Determine year and semester from provided values
         let finalYear = 1;
         let finalSemester = 1;
 
@@ -167,13 +164,6 @@ const bulkUploadStudents = async (req, res) => {
           finalSemester = (finalYear * 2) - 1;
         }
 
-        // Generate default password (will be hashed by Student model pre-save hook)
-        const defaultPassword = (password && password.toString().trim().length >= 8)
-          ? password.toString().trim()
-          : 'student@123';
-
-        // Generate email from roll number
-        const email = `${rollNo.toLowerCase()}@student.college.edu`;
 
         // Check if student already exists
         const existingStudent = await Student.findOne({ 
@@ -193,16 +183,17 @@ const bulkUploadStudents = async (req, res) => {
           continue;
         }
 
-        // Create student — year is explicitly set to satisfy schema requirement
+        // Pre-register student — NO password, isActivated: false
+        // Student will self-activate via the registration page
         const studentData = {
-          rollNumber: rollNo,
+          rollNumber:       rollNo,
           enrollmentNumber: enrollmentNumber.toString().trim().toUpperCase(),
-          fullName: fullName.trim(),
-          email: email.toLowerCase(),
-          password: defaultPassword, // Will be hashed by pre-save hook
-          department: finalDepartment,
-          year: finalYear,       // FIX: was missing — caused all inserts to fail
-          semester: finalSemester
+          fullName:         fullName.trim(),
+          department:       finalDepartment,
+          year:             finalYear,
+          semester:         finalSemester,
+          password:         null,
+          isActivated:      false
         };
 
         console.log('Creating student with data:', studentData);
@@ -267,49 +258,18 @@ const bulkUploadStudents = async (req, res) => {
 const downloadTemplate = async (req, res) => {
   try {
     // Create sample data with clean headers that match getColumnValue mapping
+    // No password column — students set their own password via self-activation
     const sampleData = [
-      {
-        'rollNumber': '101',
-        'enrollmentNumber': 'ENR2024001',
-        'fullName': 'Aarav Patil',
-        'department': 'Computer Engineering',
-        'year': '2',
-        'semester': '3',
-        'password': 'student@123'
-      },
-      {
-        'rollNumber': '102',
-        'enrollmentNumber': 'ENR2024002',
-        'fullName': 'Sneha Kulkarni',
-        'department': 'Computer Engineering',
-        'year': '2',
-        'semester': '3',
-        'password': 'student@123'
-      },
-      {
-        'rollNumber': '103',
-        'enrollmentNumber': 'ENR2024003',
-        'fullName': 'Rohit Sharma',
-        'department': 'Computer Engineering',
-        'year': '2',
-        'semester': '3',
-        'password': 'student@123'
-      }
+      { 'rollNumber': 'CS2301', 'enrollmentNumber': 'ENR2024001', 'fullName': 'Aarav Patil',    'department': 'Computer Engineering',    'year': '2', 'semester': '3' },
+      { 'rollNumber': 'CS2302', 'enrollmentNumber': 'ENR2024002', 'fullName': 'Sneha Kulkarni', 'department': 'Computer Engineering',    'year': '2', 'semester': '3' },
+      { 'rollNumber': 'IT2301', 'enrollmentNumber': 'ENR2024003', 'fullName': 'Rohit Sharma',   'department': 'Information Technology', 'year': '2', 'semester': '3' }
     ];
 
-    // Create workbook
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(sampleData);
 
-    // Set column widths
     ws['!cols'] = [
-      { wch: 15 }, // rollNumber
-      { wch: 20 }, // enrollmentNumber
-      { wch: 25 }, // fullName
-      { wch: 25 }, // department
-      { wch: 10 }, // year
-      { wch: 12 }, // semester
-      { wch: 15 }  // password
+      { wch: 15 }, { wch: 20 }, { wch: 25 }, { wch: 25 }, { wch: 10 }, { wch: 12 }
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, 'Students');

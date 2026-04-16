@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import parseApiError from '../utils/parseApiError';
+import { APP_NAME, COPYRIGHT } from '../constants/branding';
 
 // Eye icons inline — no extra dependency needed
 const EyeIcon = () => (
@@ -17,7 +19,9 @@ const EyeOffIcon = () => (
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
+  const [successMessage] = useState(location.state?.message || '');
 
   const [userType, setUserType] = useState('student');
   const [formData, setFormData] = useState({
@@ -104,7 +108,7 @@ const Login = () => {
         navigate('/staff/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed. Please try again.');
+      setError(parseApiError(err, 'Login failed. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -169,10 +173,10 @@ const Login = () => {
               {/* Welcome Text */}
               <div className="space-y-4 animate-slide-up">
                 <h1 className="text-4xl lg:text-5xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 bg-clip-text text-transparent leading-tight">
-                  Welcome to Smart Campus Helpdesk
+                  Welcome to CampusOne
                 </h1>
                 <p className="text-lg lg:text-xl text-gray-600 max-w-xl mx-auto lg:mx-0">
-                  Manage complaints, view results, and stay connected with your campus community.
+                  Your Smart Campus Platform for Complaints, Resources & Student Support
                 </p>
                 
                 {/* Feature Pills */}
@@ -350,6 +354,16 @@ const Login = () => {
                     </div>
                   </div>
 
+                  {/* Activation success message */}
+                  {successMessage && (
+                    <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded-xl text-sm flex items-center gap-2">
+                      <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="font-medium">{successMessage}</p>
+                    </div>
+                  )}
+
                   {/* Error Message */}
                   {error && (
                     <div className="bg-red-100/80 backdrop-blur-sm text-red-600 p-4 rounded-xl text-sm animate-shake border border-red-200">
@@ -408,7 +422,7 @@ const Login = () => {
                 {/* Footer */}
                 <div className="mt-8 pt-6 border-t border-white/20 text-center">
                   <p className="text-xs text-gray-500">
-                    © 2024 Smart Campus. All rights reserved.
+                    {COPYRIGHT}
                   </p>
                 </div>
               </div>
